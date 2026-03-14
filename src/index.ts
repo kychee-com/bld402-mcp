@@ -19,6 +19,23 @@ import {
 import { runSqlSchema, handleRunSql } from "./tools/run-sql.js";
 import { setupRlsSchema, handleSetupRls } from "./tools/setup-rls.js";
 import { deploySchema, handleDeploy } from "./tools/deploy.js";
+import {
+  deployFunctionSchema,
+  handleDeployFunction,
+} from "./tools/deploy-function.js";
+import {
+  invokeFunctionSchema,
+  handleInvokeFunction,
+} from "./tools/invoke-function.js";
+import {
+  getFunctionLogsSchema,
+  handleGetFunctionLogs,
+} from "./tools/get-function-logs.js";
+import { setSecretSchema, handleSetSecret } from "./tools/set-secret.js";
+import {
+  uploadFileSchema,
+  handleUploadFile,
+} from "./tools/upload-file.js";
 import { statusSchema, handleStatus } from "./tools/status.js";
 
 const server = new McpServer({
@@ -79,6 +96,45 @@ server.tool(
   "Apply row-level security to tables. Templates: public_read (anyone reads, signed-in users write), public_read_write (anyone reads and writes), user_owns_rows (each user sees only their data).",
   setupRlsSchema,
   async (args) => handleSetupRls(args),
+);
+
+// ─── Functions & secrets tools ──────────────────────────────────────────────
+
+server.tool(
+  "bld402_deploy_function",
+  "Deploy a serverless function (Node.js). Pre-bundled: stripe, openai, @anthropic-ai/sdk, resend, zod, uuid, jsonwebtoken, bcryptjs. Handler: export default async (req: Request) => Response.",
+  deployFunctionSchema,
+  async (args) => handleDeployFunction(args),
+);
+
+server.tool(
+  "bld402_invoke_function",
+  "Invoke a deployed function via HTTP. Returns the response body and status. Useful for testing functions.",
+  invokeFunctionSchema,
+  async (args) => handleInvokeFunction(args),
+);
+
+server.tool(
+  "bld402_get_function_logs",
+  "Get recent logs from a deployed function. Shows console.log/error output and stack traces.",
+  getFunctionLogsSchema,
+  async (args) => handleGetFunctionLogs(args),
+);
+
+server.tool(
+  "bld402_set_secret",
+  "Set a project secret (e.g. OPENAI_API_KEY). Secrets are injected as process.env in serverless functions.",
+  setSecretSchema,
+  async (args) => handleSetSecret(args),
+);
+
+// ─── Storage tools ─────────────────────────────────────────────────────────
+
+server.tool(
+  "bld402_upload_file",
+  "Upload a file to project storage. Returns the storage key and size.",
+  uploadFileSchema,
+  async (args) => handleUploadFile(args),
 );
 
 // ─── Deploy tools ──────────────────────────────────────────────────────────
