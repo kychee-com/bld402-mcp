@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{APP_NAME}} — Micro-Blog</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1a1a1a;
+      background: #f8f9fa;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0.5rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; }
+    .auth-bar { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+    .auth-bar button {
+      padding: 0.3rem 0.75rem;
+      border: 1px solid #d0dbe5;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #333;
+    }
+    .auth-bar button.primary { background: #0066cc; color: #fff; border-color: #0066cc; }
+    .auth-bar .user-email { color: #666; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    main { max-width: 36rem; margin: 0 auto; padding: 0.75rem 1rem; flex: 1; overflow: auto; width: 100%; }
+
+    /* Auth modal */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #fff; border-radius: 12px; padding: 1.5rem;
+      width: 90%; max-width: 360px; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .modal h2 { font-size: 1.1rem; margin-bottom: 1rem; }
+    .modal input {
+      width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 1rem; margin-bottom: 0.5rem;
+    }
+    .modal input:focus { outline: none; border-color: #0066cc; }
+    .modal .btn { width: 100%; margin-top: 0.5rem; }
+    .modal .toggle-link {
+      display: block; text-align: center; margin-top: 0.75rem;
+      font-size: 0.85rem; color: #0066cc; cursor: pointer; background: none; border: none;
+    }
+    .modal .close-btn {
+      position: absolute; top: 0.75rem; right: 0.75rem;
+      background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #999;
+    }
+    .modal-inner { position: relative; }
+    .error-msg { color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem; display: none; }
+
+    /* Compose bar */
+    .compose {
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+      padding: 0.75rem; margin-bottom: 1rem; display: none;
+    }
+    .compose.visible { display: block; }
+    .compose textarea {
+      width: 100%; border: none; font-size: 0.95rem; font-family: inherit;
+      resize: none; min-height: 3rem; outline: none; line-height: 1.5;
+    }
+    .compose-actions {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 0.5rem; gap: 0.5rem;
+    }
+    .compose-actions .left { display: flex; align-items: center; gap: 0.5rem; }
+    .char-count { font-size: 0.8rem; color: #999; }
+    .char-count.warn { color: #dc3545; }
+    .image-preview {
+      display: none; margin-top: 0.5rem; position: relative;
+    }
+    .image-preview img {
+      max-width: 100%; max-height: 200px; border-radius: 8px; object-fit: cover;
+    }
+    .image-preview .remove-img {
+      position: absolute; top: 4px; right: 4px;
+      background: rgba(0,0,0,0.6); color: #fff; border: none; border-radius: 50%;
+      width: 24px; height: 24px; cursor: pointer; font-size: 14px; line-height: 24px; text-align: center;
+    }
+
+    /* Feed */
+    .post-card {
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+      padding: 0.75rem; margin-bottom: 0.75rem;
+    }
+    .post-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    .post-author { font-weight: 600; font-size: 0.9rem; }
+    .post-time { font-size: 0.75rem; color: #999; }
+    .post-body { font-size: 0.95rem; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+    .post-image {
+      margin-top: 0.5rem; border-radius: 8px; max-width: 100%; cursor: pointer;
+      background: #e9ecef; min-height: 100px;
+    }
+    .post-footer {
+      display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;
+      padding-top: 0.5rem; border-top: 1px solid #f0f0f0;
+    }
+    .like-btn {
+      background: none; border: none; cursor: pointer; font-size: 0.85rem;
+      color: #666; display: flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0;
+    }
+    .like-btn:hover { color: #e25555; }
+    .like-btn.liked { color: #e25555; }
+    .delete-btn {
+      background: none; border: none; cursor: pointer; font-size: 0.8rem;
+      color: #999; margin-left: auto;
+    }
+    .delete-btn:hover { color: #dc3545; }
+
+    .btn {
+      padding: 0.5rem 1rem; border: none; border-radius: 6px;
+      font-size: 0.9rem; cursor: pointer;
+    }
+    .btn-primary { background: #0066cc; color: #fff; }
+    .btn-primary:hover { background: #0055aa; }
+    .btn-primary:disabled { background: #88b8e8; cursor: not-allowed; }
+    .btn-outline {
+      background: none; border: 1px solid #d0dbe5; color: #333; padding: 0.35rem 0.65rem;
+      border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+    }
+
+    .empty-state { text-align: center; padding: 3rem 1rem; color: #999; }
+    .loading { text-align: center; padding: 2rem; color: #888; }
+
+    footer { text-align: center; padding: 0.35rem; font-size: 0.75rem; color: #888; flex-shrink: 0; }
+    footer a { color: #0066cc; text-decoration: none; }
+
+    @media (max-width: 600px) { main { padding: 0.5rem; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{APP_NAME}}</h1>
+    <div class="auth-bar">
+      <span class="no-auth-only">
+        <button class="primary" onclick="openAuthModal()">Sign In</button>
+      </span>
+      <span class="auth-only" style="display:none">
+        <span class="user-email" id="user-email"></span>
+        <button onclick="doLogout()">Sign Out</button>
+      </span>
+    </div>
+  </header>
+
+  <!-- Auth Modal -->
+  <div class="modal-overlay" id="auth-modal">
+    <div class="modal">
+      <div class="modal-inner">
+        <button class="close-btn" onclick="closeAuthModal()">&times;</button>
+        <h2 id="auth-modal-title">Sign In</h2>
+        <form id="auth-form" onsubmit="return handleAuth(event)">
+          <input type="email" id="auth-email" placeholder="Email" required>
+          <input type="password" id="auth-password" placeholder="Password (min 6 chars)" required minlength="6">
+          <p class="error-msg" id="auth-error"></p>
+          <button type="submit" class="btn btn-primary" id="auth-submit-btn">Sign In</button>
+        </form>
+        <button class="toggle-link" id="auth-toggle" onclick="toggleAuthMode()">Need an account? Sign Up</button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <!-- Compose bar (visible when logged in) -->
+    <div class="compose auth-only" id="compose-bar">
+      <textarea id="compose-text" placeholder="What's on your mind?" maxlength="500" oninput="updateCharCount()"></textarea>
+      <div class="image-preview" id="image-preview">
+        <img id="preview-img" src="" alt="Preview">
+        <button class="remove-img" onclick="removeImage()">&times;</button>
+      </div>
+      <div class="compose-actions">
+        <div class="left">
+          <input type="file" id="image-input" accept="image/*" style="display:none" onchange="previewImage(event)">
+          <button class="btn-outline" onclick="document.getElementById('image-input').click()">Add Image</button>
+          <span class="char-count" id="char-count">0/500</span>
+        </div>
+        <button class="btn btn-primary" id="post-btn" onclick="createPost()">Post</button>
+      </div>
+    </div>
+
+    <!-- Feed -->
+    <div id="feed">
+      <div class="loading">Loading posts...</div>
+    </div>
+  </main>
+
+  <footer>
+    Built with <a href="https://bld402.com">bld402</a> + <a href="https://run402.com">run402</a>
+  </footer>
+
+  <script>
+    const CONFIG = {
+      API_URL: '{{API_URL}}',
+      ANON_KEY: '{{ANON_KEY}}'
+    };
+
+    let currentUser = null;
+    let isSignup = false;
+    let selectedImage = null;
+    let likedPosts = JSON.parse(localStorage.getItem('liked_posts') || '{}');
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    // Load storage images with apikey auth (img tags can't send headers)
+    const _blobCache = {};
+    function storageUrl(bucket, path) {
+      return CONFIG.API_URL + '/storage/v1/object/' + bucket + '/' + path;
+    }
+    async function loadAuthImage(imgEl, bucket, path) {
+      const key = bucket + '/' + path;
+      if (_blobCache[key]) { imgEl.src = _blobCache[key]; return; }
+      try {
+        const res = await fetch(storageUrl(bucket, path), {
+          headers: { 'apikey': CONFIG.ANON_KEY }
+        });
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        _blobCache[key] = url;
+        imgEl.src = url;
+      } catch(e) { /* image load failed silently */ }
+    }
+    function loadAllStorageImages() {
+      document.querySelectorAll('img[data-storage-path]').forEach(img => {
+        if (img.src && !img.src.startsWith('data:')) return;
+        loadAuthImage(img, img.dataset.storageBucket, img.dataset.storagePath);
+      });
+    }
+
+    // ---- API helpers ----
+    async function api(path, options = {}) {
+      const headers = {
+        'apikey': CONFIG.ANON_KEY,
+        'Content-Type': 'application/json',
+        ...options.headers
+      };
+      const token = localStorage.getItem('access_token');
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+
+      const res = await fetch(CONFIG.API_URL + path, { ...options, headers });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+      }
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    async function uploadFile(bucket, path, file) {
+      const res = await fetch(CONFIG.API_URL + '/storage/v1/object/' + bucket + '/' + path, {
+        method: 'POST',
+        headers: { 'apikey': CONFIG.ANON_KEY },
+        body: file
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    // ---- Auth ----
+    function openAuthModal() {
+      isSignup = false;
+      document.getElementById('auth-modal-title').textContent = 'Sign In';
+      document.getElementById('auth-submit-btn').textContent = 'Sign In';
+      document.getElementById('auth-toggle').textContent = 'Need an account? Sign Up';
+      document.getElementById('auth-error').style.display = 'none';
+      document.getElementById('auth-form').reset();
+      document.getElementById('auth-modal').classList.add('open');
+    }
+
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.remove('open');
+    }
+
+    function toggleAuthMode() {
+      isSignup = !isSignup;
+      document.getElementById('auth-modal-title').textContent = isSignup ? 'Sign Up' : 'Sign In';
+      document.getElementById('auth-submit-btn').textContent = isSignup ? 'Sign Up' : 'Sign In';
+      document.getElementById('auth-toggle').textContent = isSignup
+        ? 'Already have an account? Sign In'
+        : 'Need an account? Sign Up';
+      document.getElementById('auth-error').style.display = 'none';
+    }
+
+    async function handleAuth(e) {
+      e.preventDefault();
+      const email = document.getElementById('auth-email').value;
+      const password = document.getElementById('auth-password').value;
+      const errEl = document.getElementById('auth-error');
+      const btn = document.getElementById('auth-submit-btn');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+
+      try {
+        if (isSignup) {
+          await api('/auth/v1/signup', { method: 'POST', body: JSON.stringify({ email, password }) });
+        }
+        const data = await api('/auth/v1/token', {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        currentUser = data.user;
+        updateAuthUI();
+        closeAuthModal();
+      } catch (err) {
+        errEl.textContent = err.message || 'Authentication failed.';
+        errEl.style.display = '';
+      } finally {
+        btn.disabled = false;
+      }
+      return false;
+    }
+
+    async function doLogout() {
+      const rt = localStorage.getItem('refresh_token');
+      if (rt) {
+        try { await api('/auth/v1/logout', { method: 'POST', body: JSON.stringify({ refresh_token: rt }) }); } catch(e) {}
+      }
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      currentUser = null;
+      updateAuthUI();
+    }
+
+    function updateAuthUI() {
+      document.querySelectorAll('.auth-only').forEach(el => el.style.display = currentUser ? '' : 'none');
+      document.querySelectorAll('.no-auth-only').forEach(el => el.style.display = currentUser ? 'none' : '');
+      const emailEl = document.getElementById('user-email');
+      if (emailEl) emailEl.textContent = currentUser ? currentUser.email : '';
+    }
+
+    async function initAuth() {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        const rt = localStorage.getItem('refresh_token');
+        if (rt) {
+          try {
+            const data = await api('/auth/v1/token?grant_type=refresh_token', {
+              method: 'POST',
+              body: JSON.stringify({ refresh_token: rt })
+            });
+            localStorage.setItem('access_token', data.access_token);
+            localStorage.setItem('refresh_token', data.refresh_token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            currentUser = data.user;
+          } catch(e) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+          }
+        }
+      }
+      updateAuthUI();
+    }
+
+    // ---- Compose ----
+    function updateCharCount() {
+      const text = document.getElementById('compose-text').value;
+      const count = text.length;
+      const el = document.getElementById('char-count');
+      el.textContent = count + '/500';
+      el.classList.toggle('warn', count > 450);
+    }
+
+    function previewImage(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      selectedImage = file;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        document.getElementById('preview-img').src = ev.target.result;
+        document.getElementById('image-preview').style.display = '';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeImage() {
+      selectedImage = null;
+      document.getElementById('image-input').value = '';
+      document.getElementById('image-preview').style.display = 'none';
+    }
+
+    async function createPost() {
+      const body = document.getElementById('compose-text').value.trim();
+      if (!body) return;
+
+      const btn = document.getElementById('post-btn');
+      btn.disabled = true;
+      btn.textContent = 'Posting...';
+
+      try {
+        let imagePath = null;
+
+        // Upload image if selected
+        if (selectedImage) {
+          const filename = Date.now() + '-' + selectedImage.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+          await uploadFile('posts', filename, selectedImage);
+          imagePath = filename;
+        }
+
+        // Create post
+        await api('/rest/v1/posts', {
+          method: 'POST',
+          headers: { 'Prefer': 'return=minimal' },
+          body: JSON.stringify({
+            body: body,
+            image_path: imagePath,
+            user_id: currentUser.id,
+            author_name: currentUser.email.split('@')[0]
+          })
+        });
+
+        // Reset compose
+        document.getElementById('compose-text').value = '';
+        removeImage();
+        updateCharCount();
+        loadPosts();
+      } catch (err) {
+        alert('Failed to post: ' + (err.message || 'Unknown error'));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Post';
+      }
+    }
+
+    // ---- Feed ----
+    async function loadPosts() {
+      const feed = document.getElementById('feed');
+      try {
+        const posts = await api('/rest/v1/posts?order=created_at.desc&limit=50', {
+          headers: { 'Accept': 'application/json' }
+        });
+
+        if (!posts || posts.length === 0) {
+          feed.innerHTML = '<div class="empty-state"><p>No posts yet. Sign up and be the first!</p></div>';
+          return;
+        }
+
+        feed.innerHTML = posts.map(post => renderPost(post)).join('');
+        loadAllStorageImages();
+      } catch (err) {
+        feed.innerHTML = '<div class="empty-state"><p>Failed to load posts.</p></div>';
+      }
+    }
+
+    function renderPost(post) {
+      const time = new Date(post.created_at).toLocaleDateString(undefined, {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+      const isOwner = currentUser && currentUser.id === post.user_id;
+      const isLiked = likedPosts[post.id];
+      const likeCount = post.likes || 0;
+
+      let imageHtml = '';
+      if (post.image_path) {
+        imageHtml = `<img class="post-image" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-storage-bucket="posts" data-storage-path="${esc(post.image_path)}" alt="Post image">`;
+      }
+
+      return `
+        <div class="post-card" id="post-${post.id}">
+          <div class="post-header">
+            <span class="post-author">${esc(post.author_name)}</span>
+            <span class="post-time">${esc(time)}</span>
+          </div>
+          <div class="post-body">${esc(post.body)}</div>
+          ${imageHtml}
+          <div class="post-footer">
+            <button class="like-btn ${isLiked ? 'liked' : ''}" onclick="toggleLike(${post.id}, ${likeCount})">
+              ${isLiked ? '&#9829;' : '&#9825;'} ${likeCount}
+            </button>
+            ${isOwner ? `<button class="delete-btn" onclick="deletePost(${post.id})">Delete</button>` : ''}
+          </div>
+        </div>`;
+    }
+
+    async function toggleLike(postId, currentLikes) {
+      const wasLiked = likedPosts[postId];
+      const newLikes = wasLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1;
+
+      if (wasLiked) {
+        delete likedPosts[postId];
+      } else {
+        likedPosts[postId] = true;
+      }
+      localStorage.setItem('liked_posts', JSON.stringify(likedPosts));
+
+      try {
+        await api('/rest/v1/posts?id=eq.' + postId, {
+          method: 'PATCH',
+          headers: { 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ likes: newLikes })
+        });
+        loadPosts();
+      } catch (err) {
+        // Revert on failure
+        if (wasLiked) likedPosts[postId] = true;
+        else delete likedPosts[postId];
+        localStorage.setItem('liked_posts', JSON.stringify(likedPosts));
+      }
+    }
+
+    async function deletePost(postId) {
+      if (!confirm('Delete this post?')) return;
+      try {
+        await api('/rest/v1/posts?id=eq.' + postId, { method: 'DELETE' });
+        loadPosts();
+      } catch (err) {
+        alert('Failed to delete: ' + (err.message || 'Unknown error'));
+      }
+    }
+
+    // ---- Init ----
+    async function init() {
+      await initAuth();
+      await loadPosts();
+    }
+
+    init();
+  </script>
+</body>
+</html>

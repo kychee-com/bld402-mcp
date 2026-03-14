@@ -1,0 +1,18 @@
+{
+  "policies": [
+    {
+      "template": "public_read",
+      "tables": [
+        { "table": "games" },
+        { "table": "items" }
+      ]
+    },
+    {
+      "template": "public_read_write",
+      "tables": [
+        { "table": "players" }
+      ]
+    }
+  ],
+  "notes": "public_read on games and items: everyone can see game state. public_read_write on players: anyone can join a game (no auth — low friction party game)."
+}

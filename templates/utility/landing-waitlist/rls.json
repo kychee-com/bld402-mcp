@@ -1,0 +1,11 @@
+{
+  "policies": [
+    {
+      "template": "public_read_write",
+      "tables": [
+        { "table": "signups" }
+      ]
+    }
+  ],
+  "notes": "public_read_write allows anyone to submit their email. For production, consider adding rate limiting or switching to a more restrictive policy."
+}

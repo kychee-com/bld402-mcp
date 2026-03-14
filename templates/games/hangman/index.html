@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{APP_NAME}} — Hangman</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1a1a1a;
+      background: #f8f9fa;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow: hidden;
+    }
+    header {
+      width: 100%;
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0.5rem 1rem;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; }
+    main {
+      max-width: 32rem;
+      width: 100%;
+      padding: 0.75rem 1rem;
+      text-align: center;
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* Hangman drawing */
+    .hangman-svg { margin: 0.15rem auto; display: block; }
+
+    /* Word display */
+    .word-display {
+      display: flex;
+      justify-content: center;
+      gap: 0.4rem;
+      margin: 0.5rem 0;
+      flex-wrap: wrap;
+    }
+    .letter-slot {
+      width: 2.2rem;
+      height: 2.5rem;
+      border-bottom: 3px solid #333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    /* Keyboard */
+    .keyboard {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.3rem;
+      margin: 0.5rem 0;
+    }
+    .key {
+      width: 2.2rem;
+      height: 2.2rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      background: #fff;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .key:hover { background: #e9ecef; }
+    .key.correct { background: #d4edda; border-color: #28a745; color: #155724; }
+    .key.wrong { background: #f8d7da; border-color: #dc3545; color: #721c24; }
+    .key.used { pointer-events: none; opacity: 0.6; }
+
+    /* Status */
+    .status {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0.25rem 0;
+      min-height: 1.5rem;
+    }
+    .status.win { color: #28a745; }
+    .status.lose { color: #dc3545; }
+
+    /* Buttons */
+    .btn {
+      padding: 0.75rem 2rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      margin: 0.5rem;
+    }
+    .btn-primary { background: #0066cc; color: #fff; }
+    .btn-primary:hover { background: #0055aa; }
+
+    .wrong-count { color: #888; font-size: 0.9rem; margin-top: 0.5rem; }
+
+    footer {
+      margin-top: auto;
+      text-align: center;
+      padding: 0.35rem;
+      font-size: 0.75rem;
+      color: #888;
+      flex-shrink: 0;
+    }
+    footer a { color: #0066cc; text-decoration: none; }
+
+    @media (max-width: 400px) {
+      .key { width: 2rem; height: 2rem; font-size: 0.85rem; }
+      .letter-slot { width: 2rem; height: 2.5rem; font-size: 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+  <header><h1>{{APP_NAME}}</h1></header>
+
+  <main>
+    <svg class="hangman-svg" width="150" height="150" viewBox="0 0 200 200" id="hangman-drawing">
+      <!-- Base -->
+      <line x1="20" y1="180" x2="100" y2="180" stroke="#333" stroke-width="3"/>
+      <!-- Pole -->
+      <line x1="60" y1="180" x2="60" y2="20" stroke="#333" stroke-width="3"/>
+      <!-- Top -->
+      <line x1="60" y1="20" x2="140" y2="20" stroke="#333" stroke-width="3"/>
+      <!-- Rope -->
+      <line x1="140" y1="20" x2="140" y2="40" stroke="#333" stroke-width="3"/>
+      <!-- Parts (hidden by default) -->
+      <circle id="h-head" cx="140" cy="55" r="15" stroke="#333" stroke-width="3" fill="none" style="display:none"/>
+      <line id="h-body" x1="140" y1="70" x2="140" y2="120" stroke="#333" stroke-width="3" style="display:none"/>
+      <line id="h-larm" x1="140" y1="80" x2="115" y2="100" stroke="#333" stroke-width="3" style="display:none"/>
+      <line id="h-rarm" x1="140" y1="80" x2="165" y2="100" stroke="#333" stroke-width="3" style="display:none"/>
+      <line id="h-lleg" x1="140" y1="120" x2="115" y2="150" stroke="#333" stroke-width="3" style="display:none"/>
+      <line id="h-rleg" x1="140" y1="120" x2="165" y2="150" stroke="#333" stroke-width="3" style="display:none"/>
+    </svg>
+
+    <div class="word-display" id="word-display"></div>
+    <div class="status" id="status"></div>
+    <div class="wrong-count" id="wrong-count"></div>
+    <div class="keyboard" id="keyboard"></div>
+    <div>
+      <button class="btn btn-primary" id="new-game" style="display:none" onclick="newGame()">New Game</button>
+    </div>
+  </main>
+
+  <footer>
+    Built with <a href="https://bld402.com">bld402</a> + <a href="https://run402.com">run402</a>
+  </footer>
+
+  <script>
+    const CONFIG = {
+      API_URL: '{{API_URL}}',
+      ANON_KEY: '{{ANON_KEY}}'
+    };
+
+    const PARTS = ['h-head', 'h-body', 'h-larm', 'h-rarm', 'h-lleg', 'h-rleg'];
+    const ALPHABET = 'abcdefghijklmnopqrstuvwxyz'.split('');
+
+    let word = '';
+    let guesses = [];
+    let gameOver = false;
+
+    async function api(path, options = {}) {
+      const res = await fetch(CONFIG.API_URL + path, {
+        ...options,
+        headers: { 'apikey': CONFIG.ANON_KEY, 'Content-Type': 'application/json', ...options.headers }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    async function getRandomWord() {
+      const words = await api('/rest/v1/words?select=word&limit=50');
+      return words[Math.floor(Math.random() * words.length)].word.toLowerCase();
+    }
+
+    function buildKeyboard() {
+      const kb = document.getElementById('keyboard');
+      kb.innerHTML = ALPHABET.map(l =>
+        `<button class="key" data-letter="${l}" onclick="guess('${l}')">${l}</button>`
+      ).join('');
+    }
+
+    function render() {
+      // Word display
+      const display = document.getElementById('word-display');
+      display.innerHTML = word.split('').map(ch =>
+        `<div class="letter-slot">${guesses.includes(ch) ? ch : ''}</div>`
+      ).join('');
+
+      // Wrong count
+      const wrongGuesses = guesses.filter(g => !word.includes(g));
+      document.getElementById('wrong-count').textContent =
+        `Wrong guesses: ${wrongGuesses.length} / ${PARTS.length}`;
+
+      // Hangman drawing
+      PARTS.forEach((part, i) => {
+        document.getElementById(part).style.display = i < wrongGuesses.length ? '' : 'none';
+      });
+
+      // Check win/lose
+      const won = word.split('').every(ch => guesses.includes(ch));
+      const lost = wrongGuesses.length >= PARTS.length;
+
+      if (won) {
+        document.getElementById('status').textContent = 'You won!';
+        document.getElementById('status').className = 'status win';
+        gameOver = true;
+      } else if (lost) {
+        document.getElementById('status').textContent = `Game over! The word was "${word}"`;
+        document.getElementById('status').className = 'status lose';
+        // Reveal the word
+        display.innerHTML = word.split('').map(ch =>
+          `<div class="letter-slot">${ch}</div>`
+        ).join('');
+        gameOver = true;
+      }
+
+      if (gameOver) {
+        document.getElementById('new-game').style.display = '';
+        document.querySelectorAll('.key').forEach(k => k.classList.add('used'));
+      }
+    }
+
+    function guess(letter) {
+      if (gameOver || guesses.includes(letter)) return;
+      guesses.push(letter);
+
+      const btn = document.querySelector(`[data-letter="${letter}"]`);
+      if (btn) {
+        btn.classList.add('used');
+        btn.classList.add(word.includes(letter) ? 'correct' : 'wrong');
+      }
+
+      render();
+    }
+
+    async function newGame() {
+      word = await getRandomWord();
+      guesses = [];
+      gameOver = false;
+      document.getElementById('status').textContent = '';
+      document.getElementById('status').className = 'status';
+      document.getElementById('new-game').style.display = 'none';
+      buildKeyboard();
+      render();
+    }
+
+    // Keyboard input
+    document.addEventListener('keydown', (e) => {
+      if (e.key.length === 1 && ALPHABET.includes(e.key.toLowerCase())) {
+        guess(e.key.toLowerCase());
+      }
+    });
+
+    newGame();
+  </script>
+</body>
+</html>

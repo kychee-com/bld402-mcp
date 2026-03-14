@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{APP_NAME}} — Paste Locker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1a1a1a;
+      background: #f8f9fa;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0.5rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; }
+    .header-tabs { display: flex; gap: 0.5rem; }
+    .header-tabs button {
+      padding: 0.3rem 0.75rem;
+      border: 1px solid #d0dbe5;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #333;
+    }
+    .header-tabs button.active {
+      background: #0066cc;
+      color: #fff;
+      border-color: #0066cc;
+    }
+    main { max-width: 36rem; margin: 0 auto; padding: 0.75rem 1rem; flex: 1; overflow: auto; width: 100%; }
+
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.25rem; margin-top: 0.75rem; }
+    input[type="text"], input[type="password"], textarea, select {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-family: inherit;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: #0066cc; }
+    textarea { resize: vertical; min-height: 4rem; }
+
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+    }
+    .checkbox-row input[type="checkbox"] { width: auto; }
+    .checkbox-row label { margin: 0; font-weight: 500; }
+
+    .btn {
+      padding: 0.65rem 1.25rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      width: 100%;
+    }
+    .btn-primary { background: #0066cc; color: #fff; margin-top: 1rem; }
+    .btn-primary:hover { background: #0055aa; }
+    .btn-primary:disabled { background: #88b8e8; cursor: not-allowed; }
+    .btn-secondary { background: #e9ecef; color: #333; margin-top: 0.5rem; }
+
+    /* Share screen */
+    .share-box {
+      background: #fff;
+      border: 2px solid #0066cc;
+      border-radius: 10px;
+      padding: 1.5rem;
+      text-align: center;
+      margin-top: 0.5rem;
+    }
+    .share-code {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: #0066cc;
+      margin: 0.5rem 0;
+      font-family: monospace;
+    }
+    .share-url {
+      background: #f0f0f0;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      word-break: break-all;
+      font-size: 0.85rem;
+      margin: 0.75rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .share-url span { flex: 1; text-align: left; }
+    .copy-btn {
+      padding: 0.3rem 0.6rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
+    .share-tags { margin-top: 0.75rem; font-size: 0.85rem; color: #666; }
+    .tag {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin: 0 0.2rem;
+    }
+    .tag-password { background: #e8f4fd; color: #0066cc; }
+    .tag-burn { background: #fff3cd; color: #856404; }
+
+    /* Read screen */
+    .code-input-row {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .code-input-row input { flex: 1; font-family: monospace; letter-spacing: 0.1em; text-transform: uppercase; }
+    .code-input-row button { white-space: nowrap; }
+
+    .note-display {
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-top: 0.75rem;
+    }
+    .note-display h3 { margin-bottom: 0.5rem; }
+    .note-display .note-content {
+      white-space: pre-wrap;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    .note-display .note-meta {
+      margin-top: 0.75rem;
+      font-size: 0.8rem;
+      color: #888;
+    }
+    .burn-warning {
+      background: #fff3cd;
+      color: #856404;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      margin-top: 0.75rem;
+    }
+
+    .error-msg { color: #dc3545; margin-top: 0.5rem; font-size: 0.9rem; }
+    .loading { text-align: center; padding: 2rem; color: #888; }
+
+    footer { text-align: center; padding: 0.35rem; font-size: 0.75rem; color: #888; flex-shrink: 0; }
+    footer a { color: #0066cc; text-decoration: none; }
+
+    @media (max-width: 600px) { main { padding: 0.75rem; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{APP_NAME}}</h1>
+    <div class="header-tabs">
+      <button class="active" onclick="showScreen('create')">Create</button>
+      <button onclick="showScreen('read')">Read</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Create screen -->
+    <div class="screen active" id="screen-create">
+      <label for="note-title">Title (optional)</label>
+      <input type="text" id="note-title" placeholder="Give your note a title">
+
+      <label for="note-content">Content</label>
+      <textarea id="note-content" rows="5" placeholder="Paste your text here..."></textarea>
+
+      <label for="note-password">Password (optional)</label>
+      <input type="password" id="note-password" placeholder="Leave blank for no password">
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="note-burn">
+        <label for="note-burn">Burn after reading</label>
+      </div>
+
+      <label for="note-expires" style="margin-top:0.75rem">Expires in</label>
+      <select id="note-expires">
+        <option value="">Never</option>
+        <option value="1h">1 hour</option>
+        <option value="24h">24 hours</option>
+        <option value="7d">7 days</option>
+      </select>
+
+      <button class="btn btn-primary" id="create-btn" onclick="createNote()">Create Note</button>
+      <p class="error-msg" id="create-error" style="display:none"></p>
+    </div>
+
+    <!-- Share screen -->
+    <div class="screen" id="screen-share">
+      <div class="share-box">
+        <p style="font-size:0.9rem; color:#666;">Your note is ready!</p>
+        <div class="share-code" id="share-code"></div>
+        <div class="share-url">
+          <span id="share-url-text"></span>
+          <button class="copy-btn" onclick="copyUrl()">Copy</button>
+        </div>
+        <div class="share-tags" id="share-tags"></div>
+      </div>
+      <button class="btn btn-secondary" onclick="resetCreate()">Create Another</button>
+    </div>
+
+    <!-- Read screen -->
+    <div class="screen" id="screen-read">
+      <p style="font-size:0.9rem; color:#666; margin-bottom:0.25rem;">Enter the note code:</p>
+      <div class="code-input-row">
+        <input type="text" id="read-code" placeholder="e.g. AbCd1234" maxlength="8">
+        <button class="btn btn-primary" style="width:auto; margin-top:0; padding:0.6rem 1rem;" onclick="readNote()">Open</button>
+      </div>
+      <p class="error-msg" id="read-error" style="display:none"></p>
+      <div id="password-section" style="display:none; margin-top:0.75rem;">
+        <label for="read-password">This note is password-protected:</label>
+        <div class="code-input-row">
+          <input type="password" id="read-password" placeholder="Enter password">
+          <button class="btn btn-primary" style="width:auto; margin-top:0; padding:0.6rem 1rem;" onclick="submitPassword()">Unlock</button>
+        </div>
+      </div>
+      <div id="note-result" style="display:none"></div>
+    </div>
+  </main>
+
+  <footer>
+    Built with <a href="https://bld402.com">bld402</a> + <a href="https://run402.com">run402</a>
+  </footer>
+
+  <script>
+    const CONFIG = {
+      API_URL: '{{API_URL}}',
+      ANON_KEY: '{{ANON_KEY}}'
+    };
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById('screen-' + id).classList.add('active');
+      document.querySelectorAll('.header-tabs button').forEach((b, i) => {
+        b.classList.toggle('active', (i === 0 && id === 'create') || (i === 0 && id === 'share') || (i === 1 && id === 'read'));
+      });
+    }
+
+    async function callFunction(name, body) {
+      const res = await fetch(CONFIG.API_URL + '/functions/v1/' + name, {
+        method: 'POST',
+        headers: { 'apikey': CONFIG.ANON_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const err = new Error(data.error || 'Request failed');
+        err.status = res.status;
+        err.data = data;
+        throw err;
+      }
+      return data;
+    }
+
+    // ---- Create Note ----
+    async function createNote() {
+      const btn = document.getElementById('create-btn');
+      const errEl = document.getElementById('create-error');
+      errEl.style.display = 'none';
+
+      const content = document.getElementById('note-content').value.trim();
+      if (!content) {
+        errEl.textContent = 'Content is required.';
+        errEl.style.display = '';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Creating...';
+
+      try {
+        const payload = { content };
+        const title = document.getElementById('note-title').value.trim();
+        if (title) payload.title = title;
+        const password = document.getElementById('note-password').value;
+        if (password) payload.password = password;
+        if (document.getElementById('note-burn').checked) payload.burn_after_read = true;
+        const expires = document.getElementById('note-expires').value;
+        if (expires) payload.expires_in = expires;
+
+        const result = await callFunction('create-note', payload);
+
+        // Show share screen
+        document.getElementById('share-code').textContent = result.code;
+        const url = location.origin + location.pathname + '?code=' + result.code;
+        document.getElementById('share-url-text').textContent = url;
+
+        let tags = '';
+        if (result.has_password) tags += '<span class="tag tag-password">Password Protected</span>';
+        if (result.burn_after_read) tags += '<span class="tag tag-burn">Burns After Reading</span>';
+        document.getElementById('share-tags').innerHTML = tags;
+
+        showScreen('share');
+      } catch (err) {
+        errEl.textContent = err.message || 'Failed to create note.';
+        errEl.style.display = '';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Note';
+      }
+    }
+
+    function copyUrl() {
+      const url = document.getElementById('share-url-text').textContent;
+      navigator.clipboard.writeText(url).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+      });
+    }
+
+    function resetCreate() {
+      document.getElementById('note-title').value = '';
+      document.getElementById('note-content').value = '';
+      document.getElementById('note-password').value = '';
+      document.getElementById('note-burn').checked = false;
+      document.getElementById('note-expires').value = '';
+      showScreen('create');
+    }
+
+    // ---- Read Note ----
+    let currentCode = '';
+
+    async function readNote() {
+      const code = document.getElementById('read-code').value.trim();
+      if (!code) return;
+
+      currentCode = code;
+      const errEl = document.getElementById('read-error');
+      errEl.style.display = 'none';
+      document.getElementById('password-section').style.display = 'none';
+      document.getElementById('note-result').style.display = 'none';
+
+      try {
+        const result = await callFunction('read-note', { code });
+        displayNote(result);
+      } catch (err) {
+        if (err.data && err.data.needs_password) {
+          document.getElementById('password-section').style.display = '';
+          document.getElementById('read-password').value = '';
+          document.getElementById('read-password').focus();
+        } else {
+          errEl.textContent = err.message || 'Failed to load note.';
+          errEl.style.display = '';
+        }
+      }
+    }
+
+    async function submitPassword() {
+      const password = document.getElementById('read-password').value;
+      const errEl = document.getElementById('read-error');
+      errEl.style.display = 'none';
+
+      try {
+        const result = await callFunction('read-note', { code: currentCode, password });
+        document.getElementById('password-section').style.display = 'none';
+        displayNote(result);
+      } catch (err) {
+        errEl.textContent = err.message || 'Wrong password.';
+        errEl.style.display = '';
+      }
+    }
+
+    function displayNote(note) {
+      const container = document.getElementById('note-result');
+      let html = `
+        <div class="note-display">
+          <h3>${esc(note.title)}</h3>
+          <div class="note-content">${esc(note.content)}</div>
+          <div class="note-meta">Created ${new Date(note.created_at).toLocaleString()}</div>
+        </div>`;
+      if (note.burn_after_read) {
+        html += '<div class="burn-warning">This note has been burned and cannot be read again.</div>';
+      }
+      container.innerHTML = html;
+      container.style.display = '';
+    }
+
+    // ---- URL routing ----
+    function checkUrl() {
+      const params = new URLSearchParams(location.search);
+      const code = params.get('code');
+      if (code) {
+        document.getElementById('read-code').value = code;
+        showScreen('read');
+        readNote();
+      }
+    }
+
+    checkUrl();
+  </script>
+</body>
+</html>

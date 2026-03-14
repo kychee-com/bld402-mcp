@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{APP_NAME}} — Voting Booth</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1a1a1a;
+      background: #f8f9fa;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0.5rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; }
+    main { max-width: 36rem; margin: 0 auto; padding: 0.75rem 1rem; flex: 1; overflow: auto; width: 100%; }
+
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* Create form */
+    input, textarea {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-family: inherit;
+      margin-bottom: 0.5rem;
+    }
+    input:focus, textarea:focus { outline: none; border-color: #0066cc; }
+    .btn {
+      padding: 0.65rem 1.25rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      width: 100%;
+    }
+    .btn-primary { background: #0066cc; color: #fff; }
+    .btn-primary:hover { background: #0055aa; }
+    .btn-secondary { background: #e9ecef; color: #333; margin-top: 0.5rem; }
+
+    .option-input { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+    .option-input input { margin-bottom: 0; }
+    .remove-btn {
+      background: none; border: none; color: #dc3545; cursor: pointer;
+      font-size: 1.2rem; padding: 0 0.5rem;
+    }
+
+    /* Poll view */
+    .poll-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .poll-desc { color: #666; margin-bottom: 1.5rem; }
+
+    .vote-option {
+      padding: 1rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .vote-option:hover { border-color: #0066cc; background: #f0f7ff; }
+    .vote-option.selected { border-color: #0066cc; background: #e6f0ff; }
+    .vote-option.voted { cursor: default; }
+
+    /* Results */
+    .result-bar {
+      margin-bottom: 0.75rem;
+    }
+    .result-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.25rem;
+      font-weight: 500;
+    }
+    .result-track {
+      height: 2rem;
+      background: #e9ecef;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .result-fill {
+      height: 100%;
+      background: #0066cc;
+      border-radius: 6px;
+      transition: width 0.5s;
+      min-width: 0;
+    }
+    .total-votes { color: #888; font-size: 0.9rem; margin-top: 1rem; text-align: center; }
+
+    .share-link {
+      background: #f0f0f0;
+      padding: 0.75rem;
+      border-radius: 6px;
+      word-break: break-all;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    footer { text-align: center; padding: 0.35rem; font-size: 0.75rem; color: #888; flex-shrink: 0; }
+    footer a { color: #0066cc; text-decoration: none; }
+
+    @media (max-width: 600px) { main { padding: 1rem 0.75rem; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{APP_NAME}}</h1>
+    <button class="btn-primary" style="padding:0.4rem 0.75rem; border:none; border-radius:6px; color:#fff; background:#0066cc; cursor:pointer; font-size:0.85rem" onclick="showScreen('screen-create')">New Poll</button>
+  </header>
+
+  <main>
+    <!-- Home / Recent Polls -->
+    <div class="screen active" id="screen-home">
+      <h2>Recent Polls</h2>
+      <div id="poll-list" style="margin-top:1rem"></div>
+      <p id="no-polls" style="text-align:center; color:#888; margin-top:2rem; display:none">No polls yet. Create one!</p>
+    </div>
+
+    <!-- Create Poll -->
+    <div class="screen" id="screen-create">
+      <h2>Create a Poll</h2>
+      <input type="text" id="poll-title" placeholder="What's your question?">
+      <textarea id="poll-desc" placeholder="Description (optional)" rows="2"></textarea>
+      <h3 style="margin:0.75rem 0 0.5rem">Options</h3>
+      <div id="options-list">
+        <div class="option-input"><input type="text" placeholder="Option 1"><button class="remove-btn" onclick="this.parentElement.remove()">&times;</button></div>
+        <div class="option-input"><input type="text" placeholder="Option 2"><button class="remove-btn" onclick="this.parentElement.remove()">&times;</button></div>
+      </div>
+      <button class="btn btn-secondary" onclick="addOption()">+ Add Option</button>
+      <button class="btn btn-primary" style="margin-top:1rem" onclick="createPoll()">Create Poll</button>
+    </div>
+
+    <!-- Vote -->
+    <div class="screen" id="screen-vote">
+      <div class="poll-title" id="vote-title"></div>
+      <div class="poll-desc" id="vote-desc"></div>
+      <div id="vote-options"></div>
+      <button class="btn btn-primary" id="vote-submit" style="margin-top:1rem; display:none" onclick="submitVote()">Vote</button>
+    </div>
+
+    <!-- Results -->
+    <div class="screen" id="screen-results">
+      <div class="poll-title" id="results-title"></div>
+      <div id="results-bars"></div>
+      <div class="total-votes" id="total-votes"></div>
+      <div class="share-link" id="share-link"></div>
+      <button class="btn btn-secondary" onclick="showScreen('screen-home'); loadPolls()">Back to Polls</button>
+    </div>
+  </main>
+
+  <footer>
+    Built with <a href="https://bld402.com">bld402</a> + <a href="https://run402.com">run402</a>
+  </footer>
+
+  <script>
+    const CONFIG = {
+      API_URL: '{{API_URL}}',
+      ANON_KEY: '{{ANON_KEY}}'
+    };
+
+    let voterId = localStorage.getItem('voter_id');
+    if (!voterId) {
+      voterId = crypto.randomUUID();
+      localStorage.setItem('voter_id', voterId);
+    }
+
+    let selectedOption = null;
+    let currentPollId = null;
+    let resultPoller = null;
+
+    async function api(path, options = {}) {
+      const res = await fetch(CONFIG.API_URL + path, {
+        ...options,
+        headers: { 'apikey': CONFIG.ANON_KEY, 'Content-Type': 'application/json', ...options.headers }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      if (resultPoller) { clearInterval(resultPoller); resultPoller = null; }
+    }
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    // Check URL for poll ID
+    function checkUrl() {
+      const params = new URLSearchParams(location.search);
+      const pollId = params.get('poll');
+      if (pollId) {
+        loadPoll(pollId);
+      } else {
+        loadPolls();
+      }
+    }
+
+    async function loadPolls() {
+      const polls = await api('/rest/v1/polls?order=created_at.desc&limit=20');
+      const list = document.getElementById('poll-list');
+      const noPollsEl = document.getElementById('no-polls');
+
+      if (polls.length === 0) {
+        list.innerHTML = '';
+        noPollsEl.style.display = '';
+        return;
+      }
+
+      noPollsEl.style.display = 'none';
+      list.innerHTML = polls.map(p => `
+        <div class="vote-option" onclick="loadPoll('${p.id}')" style="cursor:pointer">
+          <strong>${esc(p.title)}</strong>
+          ${p.description ? `<br><small style="color:#888">${esc(p.description)}</small>` : ''}
+        </div>
+      `).join('');
+    }
+
+    function addOption() {
+      const list = document.getElementById('options-list');
+      const count = list.children.length + 1;
+      const div = document.createElement('div');
+      div.className = 'option-input';
+      div.innerHTML = `<input type="text" placeholder="Option ${count}"><button class="remove-btn" onclick="this.parentElement.remove()">&times;</button>`;
+      list.appendChild(div);
+    }
+
+    async function createPoll() {
+      const title = document.getElementById('poll-title').value.trim();
+      if (!title) return alert('Enter a question');
+
+      const optInputs = document.querySelectorAll('#options-list input');
+      const opts = Array.from(optInputs).map(i => i.value.trim()).filter(Boolean);
+      if (opts.length < 2) return alert('Add at least 2 options');
+
+      const [poll] = await api('/rest/v1/polls', {
+        method: 'POST',
+        headers: { 'Prefer': 'return=representation' },
+        body: JSON.stringify({ title, description: document.getElementById('poll-desc').value.trim() || null })
+      });
+
+      for (let i = 0; i < opts.length; i++) {
+        await api('/rest/v1/options', {
+          method: 'POST',
+          body: JSON.stringify({ poll_id: poll.id, label: opts[i], sort_order: i })
+        });
+      }
+
+      loadPoll(poll.id);
+    }
+
+    async function loadPoll(pollId) {
+      currentPollId = pollId;
+      selectedOption = null;
+      const [poll] = await api('/rest/v1/polls?id=eq.' + pollId);
+      const options = await api('/rest/v1/options?poll_id=eq.' + pollId + '&order=sort_order');
+      const myVotes = await api('/rest/v1/votes?poll_id=eq.' + pollId + '&voter_id=eq.' + voterId);
+
+      if (myVotes.length > 0) {
+        showResults(pollId);
+        return;
+      }
+
+      document.getElementById('vote-title').textContent = poll.title;
+      document.getElementById('vote-desc').textContent = poll.description || '';
+      document.getElementById('vote-options').innerHTML = options.map(o =>
+        `<div class="vote-option" data-id="${o.id}" onclick="selectVote(this, '${o.id}')">${esc(o.label)}</div>`
+      ).join('');
+      document.getElementById('vote-submit').style.display = '';
+      showScreen('screen-vote');
+    }
+
+    function selectVote(el, optionId) {
+      document.querySelectorAll('.vote-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      selectedOption = optionId;
+    }
+
+    async function submitVote() {
+      if (!selectedOption) return alert('Pick an option first');
+      try {
+        await api('/rest/v1/votes', {
+          method: 'POST',
+          body: JSON.stringify({ poll_id: currentPollId, option_id: selectedOption, voter_id: voterId })
+        });
+      } catch (e) {
+        if (e.message.includes('409') || e.message.includes('duplicate')) {
+          alert("You've already voted on this poll");
+        }
+      }
+      showResults(currentPollId);
+    }
+
+    async function showResults(pollId) {
+      const [poll] = await api('/rest/v1/polls?id=eq.' + pollId);
+      const options = await api('/rest/v1/options?poll_id=eq.' + pollId + '&order=sort_order');
+      const votes = await api('/rest/v1/votes?poll_id=eq.' + pollId);
+
+      document.getElementById('results-title').textContent = poll.title;
+
+      const voteCounts = {};
+      options.forEach(o => voteCounts[o.id] = 0);
+      votes.forEach(v => { if (voteCounts[v.option_id] !== undefined) voteCounts[v.option_id]++; });
+      const total = votes.length;
+      const maxVotes = Math.max(...Object.values(voteCounts), 1);
+
+      document.getElementById('results-bars').innerHTML = options.map(o => {
+        const count = voteCounts[o.id];
+        const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+        return `
+          <div class="result-bar">
+            <div class="result-label"><span>${esc(o.label)}</span><span>${count} (${pct}%)</span></div>
+            <div class="result-track"><div class="result-fill" style="width:${pct}%"></div></div>
+          </div>
+        `;
+      }).join('');
+
+      document.getElementById('total-votes').textContent = total + ' total vote' + (total !== 1 ? 's' : '');
+      document.getElementById('share-link').textContent = location.origin + location.pathname + '?poll=' + pollId;
+      showScreen('screen-results');
+
+      // Auto-refresh results
+      resultPoller = setInterval(async () => {
+        const newVotes = await api('/rest/v1/votes?poll_id=eq.' + pollId);
+        if (newVotes.length !== total) showResults(pollId);
+      }, 5000);
+    }
+
+    checkUrl();
+  </script>
+</body>
+</html>

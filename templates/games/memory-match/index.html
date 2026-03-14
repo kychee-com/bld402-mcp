@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{APP_NAME}} — Memory Match</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1a1a1a;
+      background: #f8f9fa;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0.5rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; }
+
+    main { flex: 1; overflow: auto; width: 100%; }
+
+    .screen { display: none; max-width: 40rem; margin: 0 auto; padding: 1rem; }
+    .screen.active { display: block; }
+
+    /* --- Buttons --- */
+    .btn {
+      padding: 0.5rem 1rem; border: none; border-radius: 6px;
+      font-size: 0.9rem; cursor: pointer;
+    }
+    .btn-primary { background: #0066cc; color: #fff; }
+    .btn-primary:hover { background: #0055aa; }
+    .btn-primary:disabled { background: #88b8e8; cursor: not-allowed; }
+    .btn-outline {
+      background: none; border: 1px solid #d0dbe5; color: #333; padding: 0.35rem 0.65rem;
+      border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+    }
+    .btn-outline:hover { background: #f0f4f8; }
+
+    /* --- Menu Screen --- */
+    .menu-hero { text-align: center; padding: 2rem 0 1.5rem; }
+    .menu-hero h2 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .menu-hero p { color: #666; font-size: 0.95rem; max-width: 28rem; margin: 0 auto; }
+
+    .menu-form {
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+      padding: 1.25rem; max-width: 24rem; margin: 0 auto;
+    }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.35rem; color: #333; }
+    .form-group input,
+    .form-group select {
+      width: 100%; padding: 0.55rem 0.75rem; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 0.95rem; font-family: inherit;
+    }
+    .form-group input:focus,
+    .form-group select:focus { outline: none; border-color: #0066cc; }
+
+    .difficulty-options { display: flex; gap: 0.5rem; }
+    .difficulty-options label {
+      flex: 1; text-align: center; padding: 0.5rem 0.25rem;
+      border: 1px solid #d0dbe5; border-radius: 6px; cursor: pointer;
+      font-size: 0.85rem; font-weight: 500; transition: all 0.15s;
+    }
+    .difficulty-options input { display: none; }
+    .difficulty-options input:checked + span {
+      /* handled via JS class on parent label */
+    }
+    .difficulty-options label.selected { border-color: #0066cc; background: #e8f0fe; color: #0066cc; }
+
+    .menu-actions { display: flex; gap: 0.5rem; margin-top: 1.25rem; }
+    .menu-actions .btn { flex: 1; }
+
+    /* --- Game Screen --- */
+    .stats-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+      padding: 0.6rem 1rem; margin-bottom: 1rem;
+    }
+    .stat { text-align: center; }
+    .stat-label { font-size: 0.7rem; text-transform: uppercase; color: #888; letter-spacing: 0.5px; }
+    .stat-value { font-size: 1.1rem; font-weight: 700; }
+    .badge {
+      font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 999px;
+      font-weight: 600; text-transform: capitalize;
+    }
+    .badge-easy { background: #d4edda; color: #155724; }
+    .badge-medium { background: #fff3cd; color: #856404; }
+    .badge-hard { background: #f8d7da; color: #721c24; }
+
+    .card-grid {
+      display: grid; gap: 0.5rem; margin: 0 auto;
+      max-width: 100%;
+    }
+    .card-grid.easy { grid-template-columns: repeat(4, 1fr); max-width: 28rem; }
+    .card-grid.medium { grid-template-columns: repeat(4, 1fr); max-width: 32rem; }
+    .card-grid.hard { grid-template-columns: repeat(5, 1fr); max-width: 36rem; }
+
+    .card-cell { aspect-ratio: 3 / 4; perspective: 600px; cursor: pointer; }
+    .card-inner {
+      position: relative; width: 100%; height: 100%;
+      transition: transform 0.4s ease; transform-style: preserve-3d;
+    }
+    .card-cell.flipped .card-inner { transform: rotateY(180deg); }
+    .card-cell.matched .card-inner { transform: rotateY(180deg); }
+
+    .card-front, .card-back {
+      position: absolute; inset: 0; backface-visibility: hidden;
+      border-radius: 8px; overflow: hidden;
+    }
+    .card-front {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2rem; color: rgba(255,255,255,0.6);
+    }
+    .card-front::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: repeating-linear-gradient(
+        45deg,
+        transparent, transparent 8px,
+        rgba(255,255,255,0.08) 8px,
+        rgba(255,255,255,0.08) 16px
+      );
+    }
+    .card-back {
+      transform: rotateY(180deg);
+      background: #fff; border: 2px solid #e0e0e0;
+    }
+    .card-back img {
+      width: 100%; height: 100%; object-fit: cover;
+      background: #e9ecef;
+    }
+    .card-cell.matched { cursor: default; }
+    .card-cell.matched .card-back { border-color: #28a745; }
+
+    .game-top-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    /* --- Victory Overlay --- */
+    .victory-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    .victory-overlay.open { display: flex; }
+    .victory-box {
+      background: #fff; border-radius: 12px; padding: 2rem;
+      width: 90%; max-width: 340px; box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+      text-align: center;
+    }
+    .victory-box h2 { font-size: 1.4rem; margin-bottom: 1rem; color: #28a745; }
+    .victory-stats { display: flex; justify-content: center; gap: 2rem; margin-bottom: 1.25rem; }
+    .victory-stat { text-align: center; }
+    .victory-stat .v-val { font-size: 1.5rem; font-weight: 700; }
+    .victory-stat .v-lbl { font-size: 0.8rem; color: #888; }
+    .victory-box .form-group { text-align: left; }
+    .victory-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+    .victory-actions .btn { flex: 1; }
+
+    /* --- Leaderboard Screen --- */
+    .lb-tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+    .lb-tab {
+      flex: 1; padding: 0.5rem; text-align: center; border: 1px solid #d0dbe5;
+      border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+      background: #fff; color: #333; transition: all 0.15s;
+    }
+    .lb-tab.active { background: #0066cc; color: #fff; border-color: #0066cc; }
+
+    .lb-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; border: 1px solid #e0e0e0; }
+    .lb-table th {
+      background: #f8f9fa; font-size: 0.75rem; text-transform: uppercase;
+      color: #888; letter-spacing: 0.5px; padding: 0.6rem 0.75rem; text-align: left;
+    }
+    .lb-table td { padding: 0.6rem 0.75rem; border-top: 1px solid #f0f0f0; font-size: 0.9rem; }
+    .lb-table tr:hover td { background: #fafbfc; }
+    .rank-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 1.5rem; height: 1.5rem; border-radius: 50%; font-size: 0.75rem;
+      font-weight: 700; background: #e0e0e0; color: #666;
+    }
+    .rank-1 { background: #ffd700; color: #7a6200; }
+    .rank-2 { background: #c0c0c0; color: #555; }
+    .rank-3 { background: #cd7f32; color: #fff; }
+
+    .empty-state { text-align: center; padding: 3rem 1rem; color: #999; }
+    .loading { text-align: center; padding: 2rem; color: #888; }
+
+    footer { text-align: center; padding: 0.35rem; font-size: 0.75rem; color: #888; flex-shrink: 0; }
+    footer a { color: #0066cc; text-decoration: none; }
+
+    @media (max-width: 600px) {
+      .screen { padding: 0.5rem; }
+      .card-grid.hard { grid-template-columns: repeat(5, 1fr); gap: 0.35rem; }
+      .card-front { font-size: 1.4rem; }
+      .stats-bar { padding: 0.4rem 0.6rem; font-size: 0.85rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{APP_NAME}}</h1>
+  </header>
+
+  <main>
+    <!-- Menu Screen -->
+    <div class="screen active" id="screen-menu">
+      <div class="menu-hero">
+        <h2>Memory Match</h2>
+        <p>Flip cards, find pairs, and test your memory. Choose a card set and difficulty, then match them all as fast as you can!</p>
+      </div>
+      <div class="menu-form">
+        <div class="form-group">
+          <label>Difficulty</label>
+          <div class="difficulty-options" id="difficulty-options">
+            <label class="selected" onclick="selectDifficulty('easy', this)">
+              <input type="radio" name="difficulty" value="easy" checked>
+              <span>Easy<br><small>3&times;4</small></span>
+            </label>
+            <label onclick="selectDifficulty('medium', this)">
+              <input type="radio" name="difficulty" value="medium">
+              <span>Medium<br><small>4&times;4</small></span>
+            </label>
+            <label onclick="selectDifficulty('hard', this)">
+              <input type="radio" name="difficulty" value="hard">
+              <span>Hard<br><small>4&times;5</small></span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="card-set-select">Card Set</label>
+          <select id="card-set-select">
+            <option value="">Loading card sets...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="player-name">Player Name</label>
+          <input type="text" id="player-name" placeholder="Enter your name" maxlength="30">
+        </div>
+        <div class="menu-actions">
+          <button class="btn btn-primary" onclick="startGame()">Start Game</button>
+          <button class="btn btn-outline" onclick="showScreen('screen-leaderboard'); loadLeaderboard()">Leaderboard</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div class="screen" id="screen-game">
+      <div class="game-top-bar">
+        <button class="btn btn-outline" onclick="confirmQuit()">&#8592; Quit</button>
+        <span class="badge" id="game-difficulty-badge"></span>
+      </div>
+      <div class="stats-bar">
+        <div class="stat">
+          <div class="stat-label">Moves</div>
+          <div class="stat-value" id="stat-moves">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Pairs</div>
+          <div class="stat-value" id="stat-pairs">0 / 0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Time</div>
+          <div class="stat-value" id="stat-timer">00:00</div>
+        </div>
+      </div>
+      <div class="card-grid" id="card-grid"></div>
+    </div>
+
+    <!-- Leaderboard Screen -->
+    <div class="screen" id="screen-leaderboard">
+      <h2 style="margin-bottom: 1rem;">Leaderboard</h2>
+      <div class="lb-tabs">
+        <div class="lb-tab active" onclick="switchLbTab('easy', this)">Easy</div>
+        <div class="lb-tab" onclick="switchLbTab('medium', this)">Medium</div>
+        <div class="lb-tab" onclick="switchLbTab('hard', this)">Hard</div>
+      </div>
+      <div id="lb-content">
+        <div class="loading">Loading scores...</div>
+      </div>
+      <div style="margin-top: 1rem; text-align: center;">
+        <button class="btn btn-outline" onclick="showScreen('screen-menu')">Back to Menu</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Victory Overlay -->
+  <div class="victory-overlay" id="victory-overlay">
+    <div class="victory-box">
+      <h2>You Won!</h2>
+      <div class="victory-stats">
+        <div class="victory-stat">
+          <div class="v-val" id="v-moves">0</div>
+          <div class="v-lbl">Moves</div>
+        </div>
+        <div class="victory-stat">
+          <div class="v-val" id="v-time">00:00</div>
+          <div class="v-lbl">Time</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="v-player-name">Player Name</label>
+        <input type="text" id="v-player-name" placeholder="Enter your name" maxlength="30">
+      </div>
+      <div class="victory-actions">
+        <button class="btn btn-primary" onclick="submitScore()">Submit Score</button>
+        <button class="btn btn-outline" onclick="playAgain()">Play Again</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Built with <a href="https://bld402.com">bld402</a> + <a href="https://run402.com">run402</a>
+  </footer>
+
+  <script>
+    const CONFIG = {
+      API_URL: '{{API_URL}}',
+      ANON_KEY: '{{ANON_KEY}}'
+    };
+
+    const DIFFICULTY = {
+      easy:   { rows: 3, cols: 4, pairs: 6 },
+      medium: { rows: 4, cols: 4, pairs: 8 },
+      hard:   { rows: 4, cols: 5, pairs: 10 }
+    };
+
+    let selectedDifficulty = 'easy';
+    let lbDifficulty = 'easy';
+    let gameState = null;
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    // Load storage images with apikey auth (img tags can't send headers)
+    const _blobCache = {};
+    function storageUrl(bucket, path) {
+      return CONFIG.API_URL + '/storage/v1/object/' + bucket + '/' + path;
+    }
+    async function loadAuthImage(imgEl, bucket, path) {
+      const key = bucket + '/' + path;
+      if (_blobCache[key]) { imgEl.src = _blobCache[key]; return; }
+      try {
+        const res = await fetch(storageUrl(bucket, path), {
+          headers: { 'apikey': CONFIG.ANON_KEY }
+        });
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        _blobCache[key] = url;
+        imgEl.src = url;
+      } catch(e) { /* image load failed silently */ }
+    }
+    function loadAllStorageImages() {
+      document.querySelectorAll('img[data-storage-path]').forEach(img => {
+        if (img.src && !img.src.startsWith('data:')) return;
+        loadAuthImage(img, img.dataset.storageBucket, img.dataset.storagePath);
+      });
+    }
+
+    // ---- API helper (no auth) ----
+    async function api(path, options = {}) {
+      const headers = {
+        'apikey': CONFIG.ANON_KEY,
+        'Content-Type': 'application/json',
+        ...options.headers
+      };
+      const res = await fetch(CONFIG.API_URL + path, { ...options, headers });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+      }
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    // ---- Screen management ----
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    // ---- Difficulty selector ----
+    function selectDifficulty(diff, el) {
+      selectedDifficulty = diff;
+      document.querySelectorAll('#difficulty-options label').forEach(l => l.classList.remove('selected'));
+      el.classList.add('selected');
+      el.querySelector('input').checked = true;
+      loadCardSets();
+    }
+
+    // ---- Load card sets ----
+    async function loadCardSets() {
+      const sel = document.getElementById('card-set-select');
+      sel.innerHTML = '<option value="">Loading...</option>';
+      try {
+        const sets = await api('/rest/v1/card_sets?difficulty=eq.' + selectedDifficulty + '&order=name.asc', {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!sets || sets.length === 0) {
+          sel.innerHTML = '<option value="">No card sets available</option>';
+          return;
+        }
+        sel.innerHTML = sets.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+      } catch (err) {
+        sel.innerHTML = '<option value="">Failed to load card sets</option>';
+      }
+    }
+
+    // ---- Game ----
+    async function startGame() {
+      const setId = document.getElementById('card-set-select').value;
+      if (!setId) { alert('Please select a card set.'); return; }
+      const playerName = document.getElementById('player-name').value.trim();
+      if (!playerName) { alert('Please enter your name.'); return; }
+
+      try {
+        const images = await api('/rest/v1/card_images?card_set_id=eq.' + setId + '&order=pair_index.asc', {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!images || images.length === 0) { alert('This card set has no images.'); return; }
+
+        const diff = DIFFICULTY[selectedDifficulty];
+        const needed = images.slice(0, diff.pairs);
+
+        // Create card pairs: each image appears twice
+        let cards = [];
+        needed.forEach(img => {
+          cards.push({ pairIndex: img.pair_index, imagePath: img.image_path, id: img.id });
+          cards.push({ pairIndex: img.pair_index, imagePath: img.image_path, id: img.id });
+        });
+
+        // Shuffle (Fisher-Yates)
+        for (let i = cards.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [cards[i], cards[j]] = [cards[j], cards[i]];
+        }
+
+        gameState = {
+          cards: cards,
+          difficulty: selectedDifficulty,
+          playerName: playerName,
+          moves: 0,
+          matchedPairs: 0,
+          totalPairs: diff.pairs,
+          flippedIndices: [],
+          locked: false,
+          timerStarted: false,
+          timerInterval: null,
+          seconds: 0
+        };
+
+        renderGrid(cards, diff);
+        updateStats();
+        showScreen('screen-game');
+
+        const badge = document.getElementById('game-difficulty-badge');
+        badge.textContent = selectedDifficulty;
+        badge.className = 'badge badge-' + selectedDifficulty;
+      } catch (err) {
+        alert('Failed to start game: ' + (err.message || 'Unknown error'));
+      }
+    }
+
+    function renderGrid(cards, diff) {
+      const grid = document.getElementById('card-grid');
+      grid.className = 'card-grid ' + selectedDifficulty;
+      grid.innerHTML = cards.map((card, i) => `
+        <div class="card-cell" data-index="${i}" onclick="flipCard(${i})">
+          <div class="card-inner">
+            <div class="card-front">?</div>
+            <div class="card-back"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-storage-bucket="memory-match" data-storage-path="${esc(card.imagePath)}" alt="Card"></div>
+          </div>
+        </div>
+      `).join('');
+      loadAllStorageImages();
+    }
+
+    function flipCard(index) {
+      const gs = gameState;
+      if (!gs || gs.locked) return;
+
+      const cell = document.querySelector(`.card-cell[data-index="${index}"]`);
+      if (!cell || cell.classList.contains('flipped') || cell.classList.contains('matched')) return;
+
+      // Start timer on first click
+      if (!gs.timerStarted) {
+        gs.timerStarted = true;
+        gs.timerInterval = setInterval(() => {
+          gs.seconds++;
+          document.getElementById('stat-timer').textContent = formatTime(gs.seconds);
+        }, 1000);
+      }
+
+      cell.classList.add('flipped');
+      gs.flippedIndices.push(index);
+
+      if (gs.flippedIndices.length === 2) {
+        gs.moves++;
+        updateStats();
+
+        const [i1, i2] = gs.flippedIndices;
+        const card1 = gs.cards[i1];
+        const card2 = gs.cards[i2];
+
+        if (card1.pairIndex === card2.pairIndex) {
+          // Match
+          const c1 = document.querySelector(`.card-cell[data-index="${i1}"]`);
+          const c2 = document.querySelector(`.card-cell[data-index="${i2}"]`);
+          c1.classList.add('matched');
+          c2.classList.add('matched');
+          gs.matchedPairs++;
+          gs.flippedIndices = [];
+          updateStats();
+
+          if (gs.matchedPairs === gs.totalPairs) {
+            clearInterval(gs.timerInterval);
+            setTimeout(showVictory, 500);
+          }
+        } else {
+          // No match — flip back
+          gs.locked = true;
+          setTimeout(() => {
+            const c1 = document.querySelector(`.card-cell[data-index="${i1}"]`);
+            const c2 = document.querySelector(`.card-cell[data-index="${i2}"]`);
+            if (c1) c1.classList.remove('flipped');
+            if (c2) c2.classList.remove('flipped');
+            gs.flippedIndices = [];
+            gs.locked = false;
+          }, 800);
+        }
+      }
+    }
+
+    function updateStats() {
+      const gs = gameState;
+      if (!gs) return;
+      document.getElementById('stat-moves').textContent = gs.moves;
+      document.getElementById('stat-pairs').textContent = gs.matchedPairs + ' / ' + gs.totalPairs;
+    }
+
+    function formatTime(sec) {
+      const m = String(Math.floor(sec / 60)).padStart(2, '0');
+      const s = String(sec % 60).padStart(2, '0');
+      return m + ':' + s;
+    }
+
+    function showVictory() {
+      const gs = gameState;
+      document.getElementById('v-moves').textContent = gs.moves;
+      document.getElementById('v-time').textContent = formatTime(gs.seconds);
+      document.getElementById('v-player-name').value = gs.playerName;
+      document.getElementById('victory-overlay').classList.add('open');
+    }
+
+    async function submitScore() {
+      const gs = gameState;
+      const name = document.getElementById('v-player-name').value.trim();
+      if (!name) { alert('Please enter your name.'); return; }
+
+      try {
+        await api('/rest/v1/scores', {
+          method: 'POST',
+          headers: { 'Prefer': 'return=minimal' },
+          body: JSON.stringify({
+            player_name: name,
+            difficulty: gs.difficulty,
+            moves: gs.moves,
+            time_seconds: gs.seconds
+          })
+        });
+        document.getElementById('victory-overlay').classList.remove('open');
+        showScreen('screen-leaderboard');
+        lbDifficulty = gs.difficulty;
+        loadLeaderboard();
+        // Activate correct tab
+        document.querySelectorAll('.lb-tab').forEach(t => {
+          t.classList.toggle('active', t.textContent.trim().toLowerCase() === gs.difficulty);
+        });
+        cleanupGame();
+      } catch (err) {
+        alert('Failed to submit score: ' + (err.message || 'Unknown error'));
+      }
+    }
+
+    function playAgain() {
+      document.getElementById('victory-overlay').classList.remove('open');
+      cleanupGame();
+      showScreen('screen-menu');
+    }
+
+    function confirmQuit() {
+      if (gameState && gameState.matchedPairs < gameState.totalPairs) {
+        if (!confirm('Quit the current game?')) return;
+      }
+      cleanupGame();
+      showScreen('screen-menu');
+    }
+
+    function cleanupGame() {
+      if (gameState && gameState.timerInterval) {
+        clearInterval(gameState.timerInterval);
+      }
+      gameState = null;
+      document.getElementById('stat-timer').textContent = '00:00';
+    }
+
+    // ---- Leaderboard ----
+    function switchLbTab(diff, el) {
+      lbDifficulty = diff;
+      document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      loadLeaderboard();
+    }
+
+    async function loadLeaderboard() {
+      const container = document.getElementById('lb-content');
+      container.innerHTML = '<div class="loading">Loading scores...</div>';
+      try {
+        const scores = await api(
+          '/rest/v1/scores?difficulty=eq.' + lbDifficulty + '&order=moves.asc,time_seconds.asc&limit=20',
+          { headers: { 'Accept': 'application/json' } }
+        );
+        if (!scores || scores.length === 0) {
+          container.innerHTML = '<div class="empty-state"><p>No scores yet. Be the first to play!</p></div>';
+          return;
+        }
+        container.innerHTML = `
+          <table class="lb-table">
+            <thead>
+              <tr><th>Rank</th><th>Player</th><th>Moves</th><th>Time</th><th>Date</th></tr>
+            </thead>
+            <tbody>
+              ${scores.map((s, i) => {
+                const date = new Date(s.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                const rankClass = i < 3 ? ' rank-' + (i + 1) : '';
+                return `<tr>
+                  <td><span class="rank-badge${rankClass}">${i + 1}</span></td>
+                  <td>${esc(s.player_name)}</td>
+                  <td>${s.moves}</td>
+                  <td>${formatTime(s.time_seconds)}</td>
+                  <td>${esc(date)}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>`;
+      } catch (err) {
+        container.innerHTML = '<div class="empty-state"><p>Failed to load leaderboard.</p></div>';
+      }
+    }
+
+    // ---- Init ----
+    function init() {
+      // Restore player name from localStorage
+      const saved = localStorage.getItem('mm_player_name');
+      if (saved) document.getElementById('player-name').value = saved;
+
+      // Save player name on change
+      document.getElementById('player-name').addEventListener('input', function() {
+        localStorage.setItem('mm_player_name', this.value);
+      });
+
+      loadCardSets();
+    }
+
+    init();
+  </script>
+</body>
+</html>

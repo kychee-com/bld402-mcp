@@ -1,0 +1,13 @@
+{
+  "policies": [
+    {
+      "template": "public_read_write",
+      "tables": [
+        { "table": "polls" },
+        { "table": "options" },
+        { "table": "votes" }
+      ]
+    }
+  ],
+  "notes": "All public_read_write. One-vote-per-user enforced by UNIQUE(poll_id, voter_id) constraint using a browser-generated voter_id stored in localStorage."
+}

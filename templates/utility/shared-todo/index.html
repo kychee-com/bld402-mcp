@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{APP_NAME}} — Shared Todo List</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; line-height: 1.5; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1a1a1a;
+      background: #f8f9fa;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0.5rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; }
+    .count { color: #888; font-size: 0.9rem; }
+    main {
+      max-width: 36rem;
+      margin: 0 auto;
+      padding: 0.75rem 1rem;
+      flex: 1;
+      overflow: auto;
+      width: 100%;
+    }
+    .add-form {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .add-form input {
+      flex: 1;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    .add-form input:focus {
+      outline: none;
+      border-color: #0066cc;
+      box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.15);
+    }
+    .add-form button {
+      padding: 0.6rem 1.25rem;
+      background: #0066cc;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .add-form button:hover { background: #0055aa; }
+    .filters {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .filters button {
+      padding: 0.35rem 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 16px;
+      background: #fff;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .filters button.active {
+      background: #0066cc;
+      color: #fff;
+      border-color: #0066cc;
+    }
+    .todo-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+    }
+    .todo-item.done { opacity: 0.5; }
+    .todo-item.done .task-text { text-decoration: line-through; }
+    .todo-item input[type="checkbox"] {
+      width: 1.25rem;
+      height: 1.25rem;
+      cursor: pointer;
+    }
+    .task-text { flex: 1; }
+    .assigned {
+      font-size: 0.8rem;
+      color: #888;
+      background: #f0f0f0;
+      padding: 0.15rem 0.5rem;
+      border-radius: 12px;
+    }
+    .delete-btn {
+      background: none;
+      border: none;
+      color: #dc3545;
+      cursor: pointer;
+      font-size: 1.1rem;
+      padding: 0.25rem;
+      opacity: 0.5;
+    }
+    .delete-btn:hover { opacity: 1; }
+    .empty {
+      text-align: center;
+      padding: 3rem;
+      color: #888;
+    }
+    .loading { text-align: center; padding: 2rem; color: #888; }
+    footer {
+      text-align: center;
+      padding: 0.35rem;
+      font-size: 0.75rem;
+      color: #888;
+      flex-shrink: 0;
+    }
+    footer a { color: #0066cc; text-decoration: none; }
+    @media (max-width: 600px) {
+      main { padding: 1rem 0.75rem; }
+      .add-form { flex-direction: column; }
+      .add-form button { padding: 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{APP_NAME}}</h1>
+    <span class="count" id="count"></span>
+  </header>
+
+  <main>
+    <form class="add-form" id="add-form">
+      <input type="text" id="task-input" placeholder="Add a task..." required>
+      <button type="submit">Add</button>
+    </form>
+
+    <div class="filters">
+      <button class="active" data-filter="all">All</button>
+      <button data-filter="active">Active</button>
+      <button data-filter="done">Done</button>
+    </div>
+
+    <div id="loading" class="loading">Loading tasks...</div>
+    <div id="todo-list"></div>
+    <div id="empty" class="empty" style="display:none">No tasks yet. Add one above!</div>
+  </main>
+
+  <footer>
+    Built with <a href="https://bld402.com">bld402</a> + <a href="https://run402.com">run402</a>
+  </footer>
+
+  <script>
+    const CONFIG = {
+      API_URL: '{{API_URL}}',
+      ANON_KEY: '{{ANON_KEY}}'
+    };
+
+    let todos = [];
+    let filter = 'all';
+
+    async function api(path, options = {}) {
+      const res = await fetch(CONFIG.API_URL + path, {
+        ...options,
+        headers: {
+          'apikey': CONFIG.ANON_KEY,
+          'Content-Type': 'application/json',
+          ...options.headers
+        }
+      });
+      if (!res.ok) throw new Error(await res.text());
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    async function loadTodos() {
+      todos = await api('/rest/v1/todos?order=created_at.desc');
+      render();
+      document.getElementById('loading').style.display = 'none';
+    }
+
+    function render() {
+      const filtered = todos.filter(t => {
+        if (filter === 'active') return !t.done;
+        if (filter === 'done') return t.done;
+        return true;
+      });
+
+      const list = document.getElementById('todo-list');
+      const empty = document.getElementById('empty');
+      const count = document.getElementById('count');
+
+      const active = todos.filter(t => !t.done).length;
+      count.textContent = active + ' remaining';
+
+      if (filtered.length === 0) {
+        list.innerHTML = '';
+        empty.style.display = '';
+        return;
+      }
+
+      empty.style.display = 'none';
+      list.innerHTML = filtered.map(t => `
+        <div class="todo-item ${t.done ? 'done' : ''}">
+          <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTodo('${t.id}', ${!t.done})">
+          <span class="task-text">${escapeHtml(t.task)}</span>
+          ${t.assigned_to ? `<span class="assigned">${escapeHtml(t.assigned_to)}</span>` : ''}
+          <button class="delete-btn" onclick="deleteTodo('${t.id}')" title="Delete">&times;</button>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(text) {
+      const d = document.createElement('div');
+      d.textContent = text;
+      return d.innerHTML;
+    }
+
+    document.getElementById('add-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('task-input');
+      const task = input.value.trim();
+      if (!task) return;
+
+      const rows = await api('/rest/v1/todos', {
+        method: 'POST',
+        headers: { 'Prefer': 'return=representation' },
+        body: JSON.stringify({ task })
+      });
+
+      todos.unshift(rows[0]);
+      input.value = '';
+      render();
+    });
+
+    async function toggleTodo(id, done) {
+      await api('/rest/v1/todos?id=eq.' + id, {
+        method: 'PATCH',
+        body: JSON.stringify({ done })
+      });
+      const todo = todos.find(t => t.id === id);
+      if (todo) todo.done = done;
+      render();
+    }
+
+    async function deleteTodo(id) {
+      await api('/rest/v1/todos?id=eq.' + id, { method: 'DELETE' });
+      todos = todos.filter(t => t.id !== id);
+      render();
+    }
+
+    document.querySelectorAll('.filters button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelector('.filters .active').classList.remove('active');
+        btn.classList.add('active');
+        filter = btn.dataset.filter;
+        render();
+      });
+    });
+
+    loadTodos();
+  </script>
+</body>
+</html>

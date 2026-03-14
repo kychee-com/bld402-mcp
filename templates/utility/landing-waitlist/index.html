@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{APP_NAME}}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; line-height: 1.6; scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1a1a1a;
+      background: #fff;
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 6rem 1.5rem 4rem;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff;
+    }
+    .hero h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      font-weight: 700;
+    }
+    .hero p {
+      font-size: 1.2rem;
+      max-width: 36rem;
+      margin: 0 auto 2rem;
+      opacity: 0.9;
+    }
+    .signup-form {
+      display: flex;
+      gap: 0.5rem;
+      max-width: 28rem;
+      margin: 0 auto;
+    }
+    .signup-form input {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    .signup-form button {
+      padding: 0.75rem 1.5rem;
+      background: #1a1a1a;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .signup-form button:hover { background: #333; }
+    .signup-success {
+      display: none;
+      font-size: 1.1rem;
+      margin-top: 1rem;
+    }
+    .signup-error {
+      display: none;
+      color: #ffcccc;
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    /* Features */
+    .features {
+      padding: 4rem 1.5rem;
+      max-width: 60rem;
+      margin: 0 auto;
+    }
+    .features h2 {
+      text-align: center;
+      font-size: 1.75rem;
+      margin-bottom: 2rem;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+      gap: 2rem;
+    }
+    .feature {
+      text-align: center;
+      padding: 1.5rem;
+    }
+    .feature-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .feature h3 {
+      margin-bottom: 0.5rem;
+    }
+    .feature p {
+      color: #666;
+      font-size: 0.95rem;
+    }
+
+    /* CTA */
+    .cta {
+      text-align: center;
+      padding: 4rem 1.5rem;
+      background: #f8f9fa;
+    }
+    .cta h2 { font-size: 1.5rem; margin-bottom: 1rem; }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 0.5rem;
+      font-size: 0.75rem;
+      color: #888;
+    }
+    footer a { color: #667eea; text-decoration: none; }
+
+    @media (max-width: 600px) {
+      .hero { padding: 3rem 1rem 2rem; }
+      .hero h1 { font-size: 1.75rem; }
+      .signup-form { flex-direction: column; }
+      .features { padding: 2rem 1rem; }
+    }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <h1>{{HEADLINE}}</h1>
+    <p>{{SUBHEADLINE}}</p>
+    <form class="signup-form" id="signup-form">
+      <input type="email" id="email-input" placeholder="Enter your email" required>
+      <button type="submit">{{CTA_TEXT}}</button>
+    </form>
+    <p class="signup-success" id="signup-success">You're on the list! We'll be in touch.</p>
+    <p class="signup-error" id="signup-error"></p>
+  </section>
+
+  <section class="features">
+    <h2>{{FEATURES_HEADING}}</h2>
+    <div class="feature-grid">
+      <div class="feature">
+        <div class="feature-icon">{{FEATURE_1_ICON}}</div>
+        <h3>{{FEATURE_1_TITLE}}</h3>
+        <p>{{FEATURE_1_DESC}}</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">{{FEATURE_2_ICON}}</div>
+        <h3>{{FEATURE_2_TITLE}}</h3>
+        <p>{{FEATURE_2_DESC}}</p>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">{{FEATURE_3_ICON}}</div>
+        <h3>{{FEATURE_3_TITLE}}</h3>
+        <p>{{FEATURE_3_DESC}}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <h2>Ready to get started?</h2>
+    <form class="signup-form" id="signup-form-bottom">
+      <input type="email" id="email-input-bottom" placeholder="Enter your email" required>
+      <button type="submit">{{CTA_TEXT}}</button>
+    </form>
+  </section>
+
+  <footer>
+    Built with <a href="https://bld402.com">bld402</a> + <a href="https://run402.com">run402</a>
+  </footer>
+
+  <script>
+    const CONFIG = {
+      API_URL: '{{API_URL}}',
+      ANON_KEY: '{{ANON_KEY}}'
+    };
+
+    async function submitEmail(email) {
+      const res = await fetch(CONFIG.API_URL + '/rest/v1/signups', {
+        method: 'POST',
+        headers: {
+          'apikey': CONFIG.ANON_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ email })
+      });
+
+      if (res.status === 409) throw new Error('already_signed_up');
+      if (!res.ok) throw new Error('failed');
+    }
+
+    function showMessage(type, text) {
+      const success = document.getElementById('signup-success');
+      const error = document.getElementById('signup-error');
+      if (type === 'success') {
+        success.textContent = text;
+        success.style.display = '';
+        error.style.display = 'none';
+      } else {
+        error.textContent = text;
+        error.style.display = '';
+        success.style.display = 'none';
+      }
+    }
+
+    async function handleSignup(e, inputId) {
+      e.preventDefault();
+      const input = document.getElementById(inputId);
+      const email = input.value.trim();
+      if (!email) return;
+
+      try {
+        await submitEmail(email);
+        showMessage('success', "You're on the list! We'll be in touch.");
+        input.value = '';
+      } catch (err) {
+        if (err.message === 'already_signed_up') {
+          showMessage('error', "You're already on the list!");
+        } else {
+          showMessage('error', 'Something went wrong. Please try again.');
+        }
+      }
+    }
+
+    document.getElementById('signup-form').addEventListener('submit', (e) => handleSignup(e, 'email-input'));
+    document.getElementById('signup-form-bottom').addEventListener('submit', (e) => handleSignup(e, 'email-input-bottom'));
+  </script>
+</body>
+</html>

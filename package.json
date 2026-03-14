@@ -1,0 +1,59 @@
+{
+  "name": "bld402-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for bld402 — build and deploy web apps on run402 from plain language. Handles wallet setup, payments, templates, and deployment automatically.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "bld402-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "node --import tsx src/index.ts"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "run402",
+    "web-app-builder",
+    "no-code",
+    "ai-agent",
+    "x402",
+    "postgres",
+    "deploy"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kychee-com/bld402-mcp.git"
+  },
+  "homepage": "https://bld402.com",
+  "bugs": "https://github.com/kychee-com/bld402-mcp/issues",
+  "author": "Kychee Technologies",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "@noble/hashes": "^2.0.1",
+    "@x402/evm": "^2.0.0",
+    "@x402/fetch": "^2.0.0",
+    "viem": "^2.0.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "license": "MIT"
+}

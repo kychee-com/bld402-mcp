@@ -1,0 +1,18 @@
+{
+  "policies": [
+    {
+      "template": "public_read",
+      "tables": [
+        { "table": "card_sets" },
+        { "table": "card_images" }
+      ]
+    },
+    {
+      "template": "public_read_write",
+      "tables": [
+        { "table": "scores" }
+      ]
+    }
+  ],
+  "notes": "public_read on card_sets and card_images: everyone can see the cards. public_read_write on scores: anyone can submit scores to the leaderboard."
+}

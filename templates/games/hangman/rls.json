@@ -1,0 +1,16 @@
+{
+  "policies": [
+    {
+      "template": "public_read_write",
+      "tables": [
+        { "table": "games" }
+      ]
+    },
+    {
+      "template": "public_read",
+      "tables": [
+        { "table": "words" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{APP_NAME}} — Photo Wall</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1a1a1a;
+      background: #f8f9fa;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0.5rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; }
+    .auth-bar { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+    .auth-bar button {
+      padding: 0.3rem 0.75rem;
+      border: 1px solid #d0dbe5;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #333;
+    }
+    .auth-bar button.primary { background: #0066cc; color: #fff; border-color: #0066cc; }
+    .auth-bar .user-email { color: #666; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    main { max-width: 60rem; margin: 0 auto; padding: 0.75rem 1rem; flex: 1; overflow: auto; width: 100%; }
+
+    /* Auth modal */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #fff; border-radius: 12px; padding: 1.5rem;
+      width: 90%; max-width: 360px; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .modal h2 { font-size: 1.1rem; margin-bottom: 1rem; }
+    .modal input {
+      width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 1rem; margin-bottom: 0.5rem;
+    }
+    .modal input:focus { outline: none; border-color: #0066cc; }
+    .modal .btn { width: 100%; margin-top: 0.5rem; }
+    .modal .toggle-link {
+      display: block; text-align: center; margin-top: 0.75rem;
+      font-size: 0.85rem; color: #0066cc; cursor: pointer; background: none; border: none;
+    }
+    .modal .close-btn {
+      position: absolute; top: 0.75rem; right: 0.75rem;
+      background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #999;
+    }
+    .modal-inner { position: relative; }
+    .error-msg { color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem; display: none; }
+
+    /* Upload bar */
+    .upload-bar {
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+      padding: 0.75rem; margin-bottom: 1rem; display: none;
+    }
+    .upload-bar.visible { display: block; }
+    .upload-bar label { font-size: 0.9rem; font-weight: 600; display: block; margin-bottom: 0.5rem; }
+    .upload-preview {
+      display: none; margin-bottom: 0.5rem; position: relative;
+    }
+    .upload-preview img {
+      max-width: 100%; max-height: 200px; border-radius: 8px; object-fit: cover;
+    }
+    .upload-preview .remove-img {
+      position: absolute; top: 4px; right: 4px;
+      background: rgba(0,0,0,0.6); color: #fff; border: none; border-radius: 50%;
+      width: 24px; height: 24px; cursor: pointer; font-size: 14px; line-height: 24px; text-align: center;
+    }
+    .upload-bar textarea {
+      width: 100%; border: 1px solid #ccc; border-radius: 6px; font-size: 0.95rem;
+      font-family: inherit; resize: none; min-height: 2.5rem; outline: none;
+      line-height: 1.5; padding: 0.5rem 0.75rem;
+    }
+    .upload-bar textarea:focus { border-color: #0066cc; }
+    .upload-actions {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 0.5rem; gap: 0.5rem;
+    }
+    .upload-actions .left { display: flex; align-items: center; gap: 0.5rem; }
+    .char-count { font-size: 0.8rem; color: #999; }
+    .char-count.warn { color: #dc3545; }
+
+    /* Photo grid */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+    }
+    .photo-card {
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+      overflow: hidden;
+    }
+    .photo-card img {
+      width: 100%; aspect-ratio: 1; object-fit: cover; cursor: pointer; display: block;
+      background: #e9ecef;
+    }
+    .photo-card-info { padding: 0.5rem 0.75rem; }
+    .photo-caption {
+      font-size: 0.85rem; line-height: 1.4; word-break: break-word;
+      margin-bottom: 0.25rem;
+    }
+    .photo-meta {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.75rem; color: #999;
+    }
+    .photo-author { font-weight: 600; color: #555; }
+    .delete-btn {
+      background: none; border: none; cursor: pointer; font-size: 0.8rem;
+      color: #999;
+    }
+    .delete-btn:hover { color: #dc3545; }
+
+    /* Lightbox */
+    .lightbox-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      z-index: 200; align-items: center; justify-content: center;
+      flex-direction: column; cursor: pointer;
+    }
+    .lightbox-overlay.open { display: flex; }
+    .lightbox-overlay img {
+      max-width: 90vw; max-height: 80vh; object-fit: contain; border-radius: 8px;
+    }
+    .lightbox-caption {
+      color: #fff; font-size: 0.95rem; margin-top: 0.75rem;
+      max-width: 90vw; text-align: center; line-height: 1.4;
+    }
+    .lightbox-close {
+      position: absolute; top: 1rem; right: 1rem;
+      background: none; border: none; color: #fff; font-size: 2rem;
+      cursor: pointer; line-height: 1;
+    }
+
+    .btn {
+      padding: 0.5rem 1rem; border: none; border-radius: 6px;
+      font-size: 0.9rem; cursor: pointer;
+    }
+    .btn-primary { background: #0066cc; color: #fff; }
+    .btn-primary:hover { background: #0055aa; }
+    .btn-primary:disabled { background: #88b8e8; cursor: not-allowed; }
+    .btn-outline {
+      background: none; border: 1px solid #d0dbe5; color: #333; padding: 0.35rem 0.65rem;
+      border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+    }
+
+    .empty-state { text-align: center; padding: 3rem 1rem; color: #999; }
+    .loading { text-align: center; padding: 2rem; color: #888; }
+
+    footer { text-align: center; padding: 0.35rem; font-size: 0.75rem; color: #888; flex-shrink: 0; }
+    footer a { color: #0066cc; text-decoration: none; }
+
+    @media (max-width: 900px) {
+      .photo-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      main { padding: 0.5rem; }
+      .photo-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{APP_NAME}}</h1>
+    <div class="auth-bar">
+      <span class="no-auth-only">
+        <button class="primary" onclick="openAuthModal()">Sign In</button>
+      </span>
+      <span class="auth-only" style="display:none">
+        <span class="user-email" id="user-email"></span>
+        <button onclick="doLogout()">Sign Out</button>
+      </span>
+    </div>
+  </header>
+
+  <!-- Auth Modal -->
+  <div class="modal-overlay" id="auth-modal">
+    <div class="modal">
+      <div class="modal-inner">
+        <button class="close-btn" onclick="closeAuthModal()">&times;</button>
+        <h2 id="auth-modal-title">Sign In</h2>
+        <form id="auth-form" onsubmit="return handleAuth(event)">
+          <input type="email" id="auth-email" placeholder="Email" required>
+          <input type="password" id="auth-password" placeholder="Password (min 6 chars)" required minlength="6">
+          <p class="error-msg" id="auth-error"></p>
+          <button type="submit" class="btn btn-primary" id="auth-submit-btn">Sign In</button>
+        </form>
+        <button class="toggle-link" id="auth-toggle" onclick="toggleAuthMode()">Need an account? Sign Up</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox -->
+  <div class="lightbox-overlay" id="lightbox" onclick="closeLightbox(event)">
+    <button class="lightbox-close" onclick="closeLightbox(event)">&times;</button>
+    <img id="lightbox-img" src="" alt="Full size photo">
+    <div class="lightbox-caption" id="lightbox-caption"></div>
+  </div>
+
+  <main>
+    <!-- Upload bar (visible when logged in) -->
+    <div class="upload-bar auth-only" id="upload-bar">
+      <label>Share a photo</label>
+      <div class="upload-preview" id="upload-preview">
+        <img id="preview-img" src="" alt="Preview">
+        <button class="remove-img" onclick="removeImage()">&times;</button>
+      </div>
+      <input type="file" id="image-input" accept="image/*" style="display:none" onchange="previewImage(event)">
+      <textarea id="caption-text" placeholder="Add a caption..." maxlength="200" oninput="updateCharCount()"></textarea>
+      <div class="upload-actions">
+        <div class="left">
+          <button class="btn-outline" onclick="document.getElementById('image-input').click()">Pick Image</button>
+          <span class="char-count" id="char-count">0/200</span>
+        </div>
+        <button class="btn btn-primary" id="upload-btn" onclick="uploadPhoto()">Post</button>
+      </div>
+    </div>
+
+    <!-- Gallery -->
+    <div id="gallery">
+      <div class="loading">Loading photos...</div>
+    </div>
+  </main>
+
+  <footer>
+    Built with <a href="https://bld402.com">bld402</a> + <a href="https://run402.com">run402</a>
+  </footer>
+
+  <script>
+    const CONFIG = {
+      API_URL: '{{API_URL}}',
+      ANON_KEY: '{{ANON_KEY}}'
+    };
+
+    let currentUser = null;
+    let isSignup = false;
+    let selectedImage = null;
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    // Load storage images with apikey auth (img tags can't send headers)
+    const _blobCache = {};
+    function storageUrl(bucket, path) {
+      return CONFIG.API_URL + '/storage/v1/object/' + bucket + '/' + path;
+    }
+    async function loadAuthImage(imgEl, bucket, path) {
+      const key = bucket + '/' + path;
+      if (_blobCache[key]) { imgEl.src = _blobCache[key]; return; }
+      try {
+        const res = await fetch(storageUrl(bucket, path), {
+          headers: { 'apikey': CONFIG.ANON_KEY }
+        });
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        _blobCache[key] = url;
+        imgEl.src = url;
+      } catch(e) { /* image load failed silently */ }
+    }
+    function loadAllStorageImages() {
+      document.querySelectorAll('img[data-storage-path]').forEach(img => {
+        if (img.src && !img.src.startsWith('data:')) return;
+        loadAuthImage(img, img.dataset.storageBucket, img.dataset.storagePath);
+      });
+    }
+
+    // ---- API helpers ----
+    async function api(path, options = {}) {
+      const headers = {
+        'apikey': CONFIG.ANON_KEY,
+        'Content-Type': 'application/json',
+        ...options.headers
+      };
+      const token = localStorage.getItem('access_token');
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+
+      const res = await fetch(CONFIG.API_URL + path, { ...options, headers });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+      }
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    async function uploadFile(bucket, path, file) {
+      const res = await fetch(CONFIG.API_URL + '/storage/v1/object/' + bucket + '/' + path, {
+        method: 'POST',
+        headers: { 'apikey': CONFIG.ANON_KEY },
+        body: file
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }
+
+    // ---- Auth ----
+    function openAuthModal() {
+      isSignup = false;
+      document.getElementById('auth-modal-title').textContent = 'Sign In';
+      document.getElementById('auth-submit-btn').textContent = 'Sign In';
+      document.getElementById('auth-toggle').textContent = 'Need an account? Sign Up';
+      document.getElementById('auth-error').style.display = 'none';
+      document.getElementById('auth-form').reset();
+      document.getElementById('auth-modal').classList.add('open');
+    }
+
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.remove('open');
+    }
+
+    function toggleAuthMode() {
+      isSignup = !isSignup;
+      document.getElementById('auth-modal-title').textContent = isSignup ? 'Sign Up' : 'Sign In';
+      document.getElementById('auth-submit-btn').textContent = isSignup ? 'Sign Up' : 'Sign In';
+      document.getElementById('auth-toggle').textContent = isSignup
+        ? 'Already have an account? Sign In'
+        : 'Need an account? Sign Up';
+      document.getElementById('auth-error').style.display = 'none';
+    }
+
+    async function handleAuth(e) {
+      e.preventDefault();
+      const email = document.getElementById('auth-email').value;
+      const password = document.getElementById('auth-password').value;
+      const errEl = document.getElementById('auth-error');
+      const btn = document.getElementById('auth-submit-btn');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+
+      try {
+        if (isSignup) {
+          await api('/auth/v1/signup', { method: 'POST', body: JSON.stringify({ email, password }) });
+        }
+        const data = await api('/auth/v1/token', {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        currentUser = data.user;
+        updateAuthUI();
+        closeAuthModal();
+      } catch (err) {
+        errEl.textContent = err.message || 'Authentication failed.';
+        errEl.style.display = '';
+      } finally {
+        btn.disabled = false;
+      }
+      return false;
+    }
+
+    async function doLogout() {
+      const rt = localStorage.getItem('refresh_token');
+      if (rt) {
+        try { await api('/auth/v1/logout', { method: 'POST', body: JSON.stringify({ refresh_token: rt }) }); } catch(e) {}
+      }
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      currentUser = null;
+      updateAuthUI();
+    }
+
+    function updateAuthUI() {
+      document.querySelectorAll('.auth-only').forEach(el => el.style.display = currentUser ? '' : 'none');
+      document.querySelectorAll('.no-auth-only').forEach(el => el.style.display = currentUser ? 'none' : '');
+      const emailEl = document.getElementById('user-email');
+      if (emailEl) emailEl.textContent = currentUser ? currentUser.email : '';
+    }
+
+    async function initAuth() {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        const rt = localStorage.getItem('refresh_token');
+        if (rt) {
+          try {
+            const data = await api('/auth/v1/token?grant_type=refresh_token', {
+              method: 'POST',
+              body: JSON.stringify({ refresh_token: rt })
+            });
+            localStorage.setItem('access_token', data.access_token);
+            localStorage.setItem('refresh_token', data.refresh_token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            currentUser = data.user;
+          } catch(e) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+          }
+        }
+      }
+      updateAuthUI();
+    }
+
+    // ---- Upload ----
+    function updateCharCount() {
+      const text = document.getElementById('caption-text').value;
+      const count = text.length;
+      const el = document.getElementById('char-count');
+      el.textContent = count + '/200';
+      el.classList.toggle('warn', count > 180);
+    }
+
+    function previewImage(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      selectedImage = file;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        document.getElementById('preview-img').src = ev.target.result;
+        document.getElementById('upload-preview').style.display = '';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeImage() {
+      selectedImage = null;
+      document.getElementById('image-input').value = '';
+      document.getElementById('upload-preview').style.display = 'none';
+    }
+
+    async function uploadPhoto() {
+      if (!selectedImage) {
+        alert('Please pick an image first.');
+        return;
+      }
+
+      const btn = document.getElementById('upload-btn');
+      btn.disabled = true;
+      btn.textContent = 'Posting...';
+
+      try {
+        const caption = document.getElementById('caption-text').value.trim();
+        const filename = Date.now() + '-' + selectedImage.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+
+        // Upload image to storage
+        await uploadFile('photos', filename, selectedImage);
+
+        // Create photo record
+        await api('/rest/v1/photos', {
+          method: 'POST',
+          headers: { 'Prefer': 'return=minimal' },
+          body: JSON.stringify({
+            image_path: filename,
+            caption: caption,
+            user_id: currentUser.id,
+            author_name: currentUser.email.split('@')[0]
+          })
+        });
+
+        // Reset upload bar
+        document.getElementById('caption-text').value = '';
+        removeImage();
+        updateCharCount();
+        loadPhotos();
+      } catch (err) {
+        alert('Failed to upload: ' + (err.message || 'Unknown error'));
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Post';
+      }
+    }
+
+    // ---- Gallery ----
+    async function loadPhotos() {
+      const gallery = document.getElementById('gallery');
+      try {
+        const photos = await api('/rest/v1/photos?order=created_at.desc&limit=50', {
+          headers: { 'Accept': 'application/json' }
+        });
+
+        if (!photos || photos.length === 0) {
+          gallery.innerHTML = '<div class="empty-state"><p>No photos yet. Sign up and share something!</p></div>';
+          return;
+        }
+
+        gallery.innerHTML = '<div class="photo-grid">' + photos.map(photo => renderPhoto(photo)).join('') + '</div>';
+        loadAllStorageImages();
+      } catch (err) {
+        gallery.innerHTML = '<div class="empty-state"><p>Failed to load photos.</p></div>';
+      }
+    }
+
+    function renderPhoto(photo) {
+      const time = new Date(photo.created_at).toLocaleDateString(undefined, {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+      const isOwner = currentUser && currentUser.id === photo.user_id;
+      const captionText = photo.caption ? esc(photo.caption) : '';
+
+      return `
+        <div class="photo-card" id="photo-${photo.id}">
+          <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-storage-bucket="photos" data-storage-path="${esc(photo.image_path)}" alt="${captionText}"
+               onclick="openLightbox('photos', '${esc(photo.image_path).replace(/'/g, "\\'")}', '${captionText.replace(/'/g, "\\'")}')">
+          <div class="photo-card-info">
+            ${captionText ? `<div class="photo-caption">${captionText}</div>` : ''}
+            <div class="photo-meta">
+              <span><span class="photo-author">${esc(photo.author_name)}</span> &middot; ${esc(time)}</span>
+              ${isOwner ? `<button class="delete-btn" onclick="deletePhoto(${photo.id})">Delete</button>` : ''}
+            </div>
+          </div>
+        </div>`;
+    }
+
+    // ---- Lightbox ----
+    function openLightbox(bucket, path, caption) {
+      const imgEl = document.getElementById('lightbox-img');
+      imgEl.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+      loadAuthImage(imgEl, bucket, path);
+      document.getElementById('lightbox-caption').textContent = caption;
+      document.getElementById('lightbox').classList.add('open');
+    }
+
+    function closeLightbox(e) {
+      if (e && e.target !== e.currentTarget && e.target.tagName !== 'BUTTON') return;
+      document.getElementById('lightbox').classList.remove('open');
+    }
+
+    // ---- Delete ----
+    async function deletePhoto(photoId) {
+      if (!confirm('Delete this photo?')) return;
+      try {
+        await api('/rest/v1/photos?id=eq.' + photoId, { method: 'DELETE' });
+        loadPhotos();
+      } catch (err) {
+        alert('Failed to delete: ' + (err.message || 'Unknown error'));
+      }
+    }
+
+    // ---- Init ----
+    async function init() {
+      await initAuth();
+      await loadPhotos();
+    }
+
+    init();
+  </script>
+</body>
+</html>

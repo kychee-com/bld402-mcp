@@ -1,0 +1,4 @@
+{
+  "policies": [],
+  "notes": "No RLS policies — all access goes through server-side functions using service_key. The client never directly reads or writes the notes table. This is the key security model: passwords are hashed and verified server-side."
+}

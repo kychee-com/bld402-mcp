@@ -1,0 +1,11 @@
+{
+  "policies": [
+    {
+      "template": "public_read_write",
+      "tables": [
+        { "table": "stickers" }
+      ]
+    }
+  ],
+  "notes": "public_read_write: anyone can create and browse stickers. No auth required — keep it frictionless."
+}

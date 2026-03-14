@@ -1,0 +1,17 @@
+{
+  "policies": [
+    {
+      "template": "public_read",
+      "tables": [
+        { "table": "posts" }
+      ]
+    },
+    {
+      "template": "user_owns_rows",
+      "tables": [
+        { "table": "posts", "owner_column": "user_id" }
+      ]
+    }
+  ],
+  "notes": "public_read: anyone can read all posts. user_owns_rows: authenticated users can insert and delete their own posts (user_id must match auth.uid())."
+}

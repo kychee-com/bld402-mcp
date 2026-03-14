@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{APP_NAME}} — Flash Cards</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1a1a1a;
+      background: #f8f9fa;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0.5rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; }
+    .auth-bar { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+    .auth-bar button {
+      padding: 0.3rem 0.75rem;
+      border: 1px solid #d0dbe5;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #333;
+    }
+    .auth-bar button.primary { background: #0066cc; color: #fff; border-color: #0066cc; }
+    .auth-bar .user-email { color: #666; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    main { max-width: 36rem; margin: 0 auto; padding: 0.75rem 1rem; flex: 1; overflow: auto; width: 100%; }
+
+    /* Auth modal */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #fff; border-radius: 12px; padding: 1.5rem;
+      width: 90%; max-width: 360px; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .modal h2 { font-size: 1.1rem; margin-bottom: 1rem; }
+    .modal input {
+      width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 1rem; margin-bottom: 0.5rem;
+    }
+    .modal input:focus { outline: none; border-color: #0066cc; }
+    .modal .btn { width: 100%; margin-top: 0.5rem; }
+    .modal .toggle-link {
+      display: block; text-align: center; margin-top: 0.75rem;
+      font-size: 0.85rem; color: #0066cc; cursor: pointer; background: none; border: none;
+    }
+    .modal .close-btn {
+      position: absolute; top: 0.75rem; right: 0.75rem;
+      background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #999;
+    }
+    .modal-inner { position: relative; }
+    .error-msg { color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem; display: none; }
+
+    /* Buttons */
+    .btn {
+      padding: 0.5rem 1rem; border: none; border-radius: 6px;
+      font-size: 0.9rem; cursor: pointer;
+    }
+    .btn-primary { background: #0066cc; color: #fff; }
+    .btn-primary:hover { background: #0055aa; }
+    .btn-primary:disabled { background: #88b8e8; cursor: not-allowed; }
+    .btn-outline {
+      background: none; border: 1px solid #d0dbe5; color: #333; padding: 0.35rem 0.65rem;
+      border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+    }
+    .btn-danger { background: #dc3545; color: #fff; }
+    .btn-danger:hover { background: #c82333; }
+
+    .empty-state { text-align: center; padding: 3rem 1rem; color: #999; }
+    .loading { text-align: center; padding: 2rem; color: #888; }
+
+    /* Top bar for screens */
+    .screen-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 0.75rem; gap: 0.5rem;
+    }
+    .screen-bar h2 { font-size: 1rem; font-weight: 600; }
+
+    /* Deck list */
+    .deck-card {
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+      padding: 0.75rem; margin-bottom: 0.75rem;
+    }
+    .deck-card-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 0.4rem;
+    }
+    .deck-card-header h3 { font-size: 0.95rem; font-weight: 600; }
+    .deck-card-meta { font-size: 0.8rem; color: #888; margin-bottom: 0.5rem; }
+    .progress-bar-bg {
+      width: 100%; height: 6px; background: #e9ecef; border-radius: 3px;
+      margin-bottom: 0.5rem; overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%; background: #28a745; border-radius: 3px;
+      transition: width 0.3s;
+    }
+    .deck-card-actions { display: flex; gap: 0.5rem; }
+
+    /* Edit deck screen */
+    .edit-field { margin-bottom: 0.75rem; }
+    .edit-field label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.25rem; color: #555; }
+    .edit-field input[type="text"],
+    .edit-field textarea {
+      width: 100%; padding: 0.5rem 0.65rem; border: 1px solid #ccc; border-radius: 6px;
+      font-size: 0.95rem; font-family: inherit;
+    }
+    .edit-field textarea { resize: none; min-height: 2.5rem; }
+    .edit-field input:focus, .edit-field textarea:focus { outline: none; border-color: #0066cc; }
+
+    .card-row {
+      display: flex; gap: 0.5rem; align-items: start; margin-bottom: 0.5rem;
+    }
+    .card-row input {
+      flex: 1; padding: 0.45rem 0.55rem; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 0.9rem;
+    }
+    .card-row input:focus { outline: none; border-color: #0066cc; }
+    .card-row .remove-card-btn {
+      background: none; border: none; color: #dc3545; cursor: pointer;
+      font-size: 1.2rem; padding: 0.3rem; flex-shrink: 0; line-height: 1;
+    }
+    .card-row .remove-card-btn:hover { color: #a71d2a; }
+
+    .checkbox-row {
+      display: flex; align-items: center; gap: 0.5rem;
+      margin: 0.75rem 0; font-size: 0.9rem;
+    }
+    .checkbox-row input[type="checkbox"] { width: auto; margin: 0; }
+
+    .card-labels {
+      display: flex; gap: 0.5rem; margin-bottom: 0.25rem; padding-right: 1.75rem;
+    }
+    .card-labels span { flex: 1; font-size: 0.75rem; color: #888; font-weight: 600; }
+
+    /* Study mode */
+    .study-screen {
+      display: none; position: fixed; inset: 0; background: #f8f9fa;
+      z-index: 50; flex-direction: column;
+    }
+    .study-screen.open { display: flex; }
+    .study-top {
+      padding: 0.75rem 1rem; flex-shrink: 0;
+      display: flex; align-items: center; gap: 0.75rem;
+    }
+    .study-top .back-btn {
+      background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #555; padding: 0;
+    }
+    .study-progress-bar {
+      flex: 1; height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden;
+    }
+    .study-progress-fill {
+      height: 100%; background: #0066cc; border-radius: 3px; transition: width 0.3s;
+    }
+    .study-count { font-size: 0.8rem; color: #888; white-space: nowrap; }
+
+    .study-card-area {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      padding: 1rem; perspective: 800px;
+    }
+    .study-card {
+      width: 100%; max-width: 28rem; min-height: 14rem;
+      cursor: pointer; position: relative;
+      transform-style: preserve-3d; transition: transform 0.5s;
+    }
+    .study-card.flipped { transform: rotateY(180deg); }
+    .study-card-face {
+      position: absolute; inset: 0; backface-visibility: hidden;
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem; text-align: center; font-size: 1.2rem; line-height: 1.5;
+      word-break: break-word;
+    }
+    .study-card-back {
+      transform: rotateY(180deg);
+      background: #f0f7ff;
+    }
+    .study-card-label {
+      position: absolute; top: 0.5rem; left: 0.75rem;
+      font-size: 0.7rem; color: #aaa; text-transform: uppercase; font-weight: 600;
+    }
+
+    .study-actions {
+      padding: 1rem; flex-shrink: 0;
+      display: flex; justify-content: center; gap: 0.75rem;
+    }
+    .study-actions .rate-btn {
+      padding: 0.75rem 1.25rem; border: none; border-radius: 10px;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer; min-width: 5rem;
+      color: #fff;
+    }
+    .rate-btn.again { background: #dc3545; }
+    .rate-btn.again:hover { background: #c82333; }
+    .rate-btn.hard { background: #ffc107; color: #333; }
+    .rate-btn.hard:hover { background: #e0a800; }
+    .rate-btn.easy { background: #28a745; }
+    .rate-btn.easy:hover { background: #218838; }
+
+    .study-tap-hint {
+      text-align: center; font-size: 0.8rem; color: #aaa; padding-bottom: 0.5rem;
+    }
+
+    .study-complete {
+      text-align: center; padding: 2rem 1rem;
+    }
+    .study-complete h2 { font-size: 1.3rem; margin-bottom: 1rem; }
+    .study-complete .stats { font-size: 0.95rem; color: #555; line-height: 1.8; }
+
+    /* Public decks */
+    .public-badge {
+      display: inline-block; font-size: 0.7rem; background: #e8f4fd; color: #0066cc;
+      padding: 0.1rem 0.4rem; border-radius: 4px; font-weight: 600;
+    }
+    .clone-btn { font-size: 0.85rem; }
+
+    footer { text-align: center; padding: 0.35rem; font-size: 0.75rem; color: #888; flex-shrink: 0; }
+    footer a { color: #0066cc; text-decoration: none; }
+
+    @media (max-width: 600px) { main { padding: 0.5rem; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{APP_NAME}}</h1>
+    <div class="auth-bar">
+      <span class="no-auth-only">
+        <button class="primary" onclick="openAuthModal()">Sign In</button>
+      </span>
+      <span class="auth-only" style="display:none">
+        <span class="user-email" id="user-email"></span>
+        <button onclick="doLogout()">Sign Out</button>
+      </span>
+    </div>
+  </header>
+
+  <!-- Auth Modal -->
+  <div class="modal-overlay" id="auth-modal">
+    <div class="modal">
+      <div class="modal-inner">
+        <button class="close-btn" onclick="closeAuthModal()">&times;</button>
+        <h2 id="auth-modal-title">Sign In</h2>
+        <form id="auth-form" onsubmit="return handleAuth(event)">
+          <input type="email" id="auth-email" placeholder="Email" required>
+          <input type="password" id="auth-password" placeholder="Password (min 6 chars)" required minlength="6">
+          <p class="error-msg" id="auth-error"></p>
+          <button type="submit" class="btn btn-primary" id="auth-submit-btn">Sign In</button>
+        </form>
+        <button class="toggle-link" id="auth-toggle" onclick="toggleAuthMode()">Need an account? Sign Up</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Study mode (full-screen overlay) -->
+  <div class="study-screen" id="study-screen">
+    <div class="study-top">
+      <button class="back-btn" onclick="exitStudy()" title="Back">&larr;</button>
+      <div class="study-progress-bar"><div class="study-progress-fill" id="study-progress-fill"></div></div>
+      <span class="study-count" id="study-count"></span>
+    </div>
+    <div class="study-card-area" id="study-card-area">
+      <div class="study-card" id="study-card" onclick="flipCard()">
+        <div class="study-card-face study-card-front">
+          <span class="study-card-label">Front</span>
+          <span id="study-front-text"></span>
+        </div>
+        <div class="study-card-face study-card-back">
+          <span class="study-card-label">Back</span>
+          <span id="study-back-text"></span>
+        </div>
+      </div>
+    </div>
+    <div class="study-tap-hint" id="study-tap-hint">Tap card to flip</div>
+    <div class="study-actions" id="study-actions" style="display:none">
+      <button class="rate-btn again" onclick="rateCard('again')">Again</button>
+      <button class="rate-btn hard" onclick="rateCard('hard')">Hard</button>
+      <button class="rate-btn easy" onclick="rateCard('easy')">Easy</button>
+    </div>
+    <div class="study-complete" id="study-complete" style="display:none"></div>
+  </div>
+
+  <main id="app">
+    <div class="loading">Loading...</div>
+  </main>
+
+  <footer>
+    Built with <a href="https://bld402.com">bld402</a> + <a href="https://run402.com">run402</a>
+  </footer>
+
+  <script>
+    const CONFIG = {
+      API_URL: '{{API_URL}}',
+      ANON_KEY: '{{ANON_KEY}}'
+    };
+
+    let currentUser = null;
+    let isSignup = false;
+
+    // Current screen state
+    let currentScreen = 'decks'; // 'decks' | 'edit' | 'public'
+    let editingDeck = null; // { id, name, description, is_public, cards: [] }
+    let editCards = []; // working copy of cards for editor
+
+    // Study state
+    let studyDeck = null;
+    let studyCards = [];   // cards due for review
+    let studyProgress = {}; // card_id -> progress row
+    let studyIndex = 0;
+    let studyFlipped = false;
+    let studyStats = { again: 0, hard: 0, easy: 0 };
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    // ---- API helpers ----
+    async function api(path, options = {}) {
+      const headers = {
+        'apikey': CONFIG.ANON_KEY,
+        'Content-Type': 'application/json',
+        ...options.headers
+      };
+      const token = localStorage.getItem('access_token');
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+
+      const res = await fetch(CONFIG.API_URL + path, { ...options, headers });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+      }
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    // ---- Auth ----
+    function openAuthModal() {
+      isSignup = false;
+      document.getElementById('auth-modal-title').textContent = 'Sign In';
+      document.getElementById('auth-submit-btn').textContent = 'Sign In';
+      document.getElementById('auth-toggle').textContent = 'Need an account? Sign Up';
+      document.getElementById('auth-error').style.display = 'none';
+      document.getElementById('auth-form').reset();
+      document.getElementById('auth-modal').classList.add('open');
+    }
+
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.remove('open');
+    }
+
+    function toggleAuthMode() {
+      isSignup = !isSignup;
+      document.getElementById('auth-modal-title').textContent = isSignup ? 'Sign Up' : 'Sign In';
+      document.getElementById('auth-submit-btn').textContent = isSignup ? 'Sign Up' : 'Sign In';
+      document.getElementById('auth-toggle').textContent = isSignup
+        ? 'Already have an account? Sign In'
+        : 'Need an account? Sign Up';
+      document.getElementById('auth-error').style.display = 'none';
+    }
+
+    async function handleAuth(e) {
+      e.preventDefault();
+      const email = document.getElementById('auth-email').value;
+      const password = document.getElementById('auth-password').value;
+      const errEl = document.getElementById('auth-error');
+      const btn = document.getElementById('auth-submit-btn');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+
+      try {
+        if (isSignup) {
+          await api('/auth/v1/signup', { method: 'POST', body: JSON.stringify({ email, password }) });
+        }
+        const data = await api('/auth/v1/token', {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        currentUser = data.user;
+        updateAuthUI();
+        closeAuthModal();
+        showDecks();
+      } catch (err) {
+        errEl.textContent = err.message || 'Authentication failed.';
+        errEl.style.display = '';
+      } finally {
+        btn.disabled = false;
+      }
+      return false;
+    }
+
+    async function doLogout() {
+      const rt = localStorage.getItem('refresh_token');
+      if (rt) {
+        try { await api('/auth/v1/logout', { method: 'POST', body: JSON.stringify({ refresh_token: rt }) }); } catch(e) {}
+      }
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      currentUser = null;
+      updateAuthUI();
+      showDecks();
+    }
+
+    function updateAuthUI() {
+      document.querySelectorAll('.auth-only').forEach(el => el.style.display = currentUser ? '' : 'none');
+      document.querySelectorAll('.no-auth-only').forEach(el => el.style.display = currentUser ? 'none' : '');
+      const emailEl = document.getElementById('user-email');
+      if (emailEl) emailEl.textContent = currentUser ? currentUser.email : '';
+    }
+
+    async function initAuth() {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        const rt = localStorage.getItem('refresh_token');
+        if (rt) {
+          try {
+            const data = await api('/auth/v1/token?grant_type=refresh_token', {
+              method: 'POST',
+              body: JSON.stringify({ refresh_token: rt })
+            });
+            localStorage.setItem('access_token', data.access_token);
+            localStorage.setItem('refresh_token', data.refresh_token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            currentUser = data.user;
+          } catch(e) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+          }
+        }
+      }
+      updateAuthUI();
+    }
+
+    // ---- My Decks Screen ----
+    async function showDecks() {
+      currentScreen = 'decks';
+      const app = document.getElementById('app');
+
+      if (!currentUser) {
+        app.innerHTML = '<div class="empty-state"><p>Sign in to create and manage your flash card decks.</p></div>';
+        return;
+      }
+
+      app.innerHTML = '<div class="loading">Loading decks...</div>';
+
+      try {
+        const decks = await api('/rest/v1/decks?user_id=eq.' + currentUser.id + '&order=created_at.desc', {
+          headers: { 'Accept': 'application/json' }
+        });
+
+        let html = '<div class="screen-bar">';
+        html += '<h2>My Decks</h2>';
+        html += '<div style="display:flex;gap:0.5rem">';
+        html += '<button class="btn-outline" onclick="showPublicDecks()">Public Decks</button>';
+        html += '<button class="btn btn-primary" onclick="newDeck()">+ New Deck</button>';
+        html += '</div></div>';
+
+        if (!decks || decks.length === 0) {
+          html += '<div class="empty-state"><p>No decks yet. Create your first one!</p></div>';
+          app.innerHTML = html;
+          return;
+        }
+
+        // Fetch cards and progress for all decks
+        const deckIds = decks.map(d => d.id);
+        const cards = await api('/rest/v1/cards?deck_id=in.(' + deckIds.join(',') + ')&select=id,deck_id', {
+          headers: { 'Accept': 'application/json' }
+        });
+        const cardIds = cards.map(c => c.id);
+        let progressRows = [];
+        if (cardIds.length > 0) {
+          progressRows = await api('/rest/v1/progress?user_id=eq.' + currentUser.id + '&card_id=in.(' + cardIds.join(',') + ')', {
+            headers: { 'Accept': 'application/json' }
+          });
+        }
+
+        // Build lookup maps
+        const cardsByDeck = {};
+        cards.forEach(c => {
+          if (!cardsByDeck[c.deck_id]) cardsByDeck[c.deck_id] = [];
+          cardsByDeck[c.deck_id].push(c);
+        });
+        const progressByCard = {};
+        (progressRows || []).forEach(p => { progressByCard[p.card_id] = p; });
+
+        for (const deck of decks) {
+          const deckCards = cardsByDeck[deck.id] || [];
+          const total = deckCards.length;
+          let mastered = 0;
+          deckCards.forEach(c => {
+            const p = progressByCard[c.id];
+            if (p && p.interval_days > 0) mastered++;
+          });
+          const pct = total > 0 ? Math.round((mastered / total) * 100) : 0;
+
+          html += `<div class="deck-card">
+            <div class="deck-card-header">
+              <h3>${esc(deck.name)}</h3>
+              ${deck.is_public ? '<span class="public-badge">Public</span>' : ''}
+            </div>
+            <div class="deck-card-meta">${total} card${total !== 1 ? 's' : ''} &middot; ${pct}% mastered</div>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+            <div class="deck-card-actions">
+              <button class="btn btn-primary" onclick="startStudy(${deck.id})" ${total === 0 ? 'disabled' : ''}>Study</button>
+              <button class="btn-outline" onclick="editDeck(${deck.id})">Edit</button>
+            </div>
+          </div>`;
+        }
+
+        app.innerHTML = html;
+      } catch (err) {
+        app.innerHTML = '<div class="empty-state"><p>Failed to load decks.</p></div>';
+      }
+    }
+
+    // ---- New Deck ----
+    function newDeck() {
+      editingDeck = { id: null, name: '', description: '', is_public: false };
+      editCards = [];
+      renderEditScreen();
+    }
+
+    // ---- Edit Deck Screen ----
+    async function editDeck(deckId) {
+      const app = document.getElementById('app');
+      app.innerHTML = '<div class="loading">Loading deck...</div>';
+
+      try {
+        const decks = await api('/rest/v1/decks?id=eq.' + deckId, {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!decks || decks.length === 0) { showDecks(); return; }
+        editingDeck = decks[0];
+
+        const cards = await api('/rest/v1/cards?deck_id=eq.' + deckId + '&order=sort_order.asc', {
+          headers: { 'Accept': 'application/json' }
+        });
+        editCards = (cards || []).map(c => ({ id: c.id, front: c.front, back: c.back }));
+        renderEditScreen();
+      } catch (err) {
+        app.innerHTML = '<div class="empty-state"><p>Failed to load deck.</p></div>';
+      }
+    }
+
+    function renderEditScreen() {
+      currentScreen = 'edit';
+      const app = document.getElementById('app');
+      const isNew = !editingDeck.id;
+
+      let html = '<div class="screen-bar">';
+      html += '<button class="btn-outline" onclick="showDecks()">&larr; Back</button>';
+      html += '<h2>' + (isNew ? 'New Deck' : 'Edit Deck') + '</h2>';
+      html += '<div></div>';
+      html += '</div>';
+
+      html += '<div class="edit-field"><label>Deck Name</label>';
+      html += '<input type="text" id="edit-name" value="' + esc(editingDeck.name) + '" placeholder="e.g. Spanish Vocabulary"></div>';
+
+      html += '<div class="edit-field"><label>Description</label>';
+      html += '<textarea id="edit-desc" placeholder="Optional description">' + esc(editingDeck.description || '') + '</textarea></div>';
+
+      html += '<div class="checkbox-row">';
+      html += '<input type="checkbox" id="edit-public" ' + (editingDeck.is_public ? 'checked' : '') + '>';
+      html += '<label for="edit-public">Make Public</label></div>';
+
+      html += '<div style="margin-bottom:0.5rem"><label style="font-size:0.85rem;font-weight:600;color:#555">Cards</label></div>';
+
+      if (editCards.length > 0) {
+        html += '<div class="card-labels"><span>Front</span><span>Back</span></div>';
+      }
+
+      html += '<div id="card-rows">';
+      editCards.forEach((c, i) => {
+        html += renderCardRow(i, c.front, c.back);
+      });
+      html += '</div>';
+
+      html += '<button class="btn-outline" onclick="addCardRow()" style="margin-bottom:1rem">+ Add Card</button>';
+
+      html += '<div style="display:flex;gap:0.5rem">';
+      html += '<button class="btn btn-primary" onclick="saveDeck()">Save</button>';
+      if (!isNew) {
+        html += '<button class="btn btn-danger" onclick="deleteDeck(' + editingDeck.id + ')">Delete Deck</button>';
+      }
+      html += '</div>';
+
+      app.innerHTML = html;
+    }
+
+    function renderCardRow(index, front, back) {
+      return `<div class="card-row" data-index="${index}">
+        <input type="text" class="card-front" placeholder="Front" value="${esc(front || '')}">
+        <input type="text" class="card-back" placeholder="Back" value="${esc(back || '')}">
+        <button class="remove-card-btn" onclick="removeCardRow(${index})" title="Remove">&times;</button>
+      </div>`;
+    }
+
+    function addCardRow() {
+      editCards.push({ id: null, front: '', back: '' });
+      syncEditCardsFromDOM();
+      renderEditScreen();
+      // Focus the new front input
+      const rows = document.querySelectorAll('.card-row');
+      if (rows.length > 0) {
+        const last = rows[rows.length - 1];
+        last.querySelector('.card-front').focus();
+      }
+    }
+
+    function removeCardRow(index) {
+      syncEditCardsFromDOM();
+      editCards.splice(index, 1);
+      renderEditScreen();
+    }
+
+    function syncEditCardsFromDOM() {
+      const rows = document.querySelectorAll('.card-row');
+      rows.forEach((row, i) => {
+        if (editCards[i]) {
+          editCards[i].front = row.querySelector('.card-front').value;
+          editCards[i].back = row.querySelector('.card-back').value;
+        }
+      });
+    }
+
+    async function saveDeck() {
+      syncEditCardsFromDOM();
+      const name = document.getElementById('edit-name').value.trim();
+      if (!name) { alert('Please enter a deck name.'); return; }
+
+      const description = document.getElementById('edit-desc').value.trim();
+      const is_public = document.getElementById('edit-public').checked;
+
+      try {
+        let deckId = editingDeck.id;
+
+        if (deckId) {
+          // Update existing deck
+          await api('/rest/v1/decks?id=eq.' + deckId, {
+            method: 'PATCH',
+            headers: { 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ name, description, is_public })
+          });
+
+          // Delete old cards and re-insert
+          await api('/rest/v1/cards?deck_id=eq.' + deckId, {
+            method: 'DELETE'
+          });
+        } else {
+          // Create new deck
+          const result = await api('/rest/v1/decks', {
+            method: 'POST',
+            headers: { 'Prefer': 'return=representation' },
+            body: JSON.stringify({ name, description, is_public, user_id: currentUser.id })
+          });
+          deckId = result[0].id;
+        }
+
+        // Insert cards
+        const cardsToInsert = editCards
+          .filter(c => c.front.trim() || c.back.trim())
+          .map((c, i) => ({
+            deck_id: deckId,
+            front: c.front.trim(),
+            back: c.back.trim(),
+            sort_order: i
+          }));
+
+        if (cardsToInsert.length > 0) {
+          await api('/rest/v1/cards', {
+            method: 'POST',
+            headers: { 'Prefer': 'return=minimal' },
+            body: JSON.stringify(cardsToInsert)
+          });
+        }
+
+        showDecks();
+      } catch (err) {
+        alert('Failed to save: ' + (err.message || 'Unknown error'));
+      }
+    }
+
+    async function deleteDeck(deckId) {
+      if (!confirm('Delete this deck and all its cards?')) return;
+      try {
+        await api('/rest/v1/decks?id=eq.' + deckId, { method: 'DELETE' });
+        showDecks();
+      } catch (err) {
+        alert('Failed to delete: ' + (err.message || 'Unknown error'));
+      }
+    }
+
+    // ---- Public Decks ----
+    async function showPublicDecks() {
+      currentScreen = 'public';
+      const app = document.getElementById('app');
+      app.innerHTML = '<div class="loading">Loading public decks...</div>';
+
+      try {
+        const decks = await api('/rest/v1/decks?is_public=eq.true&order=created_at.desc&limit=50', {
+          headers: { 'Accept': 'application/json' }
+        });
+
+        let html = '<div class="screen-bar">';
+        html += '<button class="btn-outline" onclick="showDecks()">&larr; Back</button>';
+        html += '<h2>Public Decks</h2>';
+        html += '<div></div>';
+        html += '</div>';
+
+        if (!decks || decks.length === 0) {
+          html += '<div class="empty-state"><p>No public decks available yet.</p></div>';
+          app.innerHTML = html;
+          return;
+        }
+
+        // Fetch card counts
+        const deckIds = decks.map(d => d.id);
+        const cards = await api('/rest/v1/cards?deck_id=in.(' + deckIds.join(',') + ')&select=id,deck_id', {
+          headers: { 'Accept': 'application/json' }
+        });
+        const countByDeck = {};
+        (cards || []).forEach(c => {
+          countByDeck[c.deck_id] = (countByDeck[c.deck_id] || 0) + 1;
+        });
+
+        for (const deck of decks) {
+          const count = countByDeck[deck.id] || 0;
+          const isOwn = currentUser && deck.user_id === currentUser.id;
+          html += `<div class="deck-card">
+            <div class="deck-card-header">
+              <h3>${esc(deck.name)}</h3>
+              <span class="public-badge">Public</span>
+            </div>
+            ${deck.description ? '<div class="deck-card-meta">' + esc(deck.description) + '</div>' : ''}
+            <div class="deck-card-meta">${count} card${count !== 1 ? 's' : ''}</div>
+            <div class="deck-card-actions">
+              ${!isOwn && currentUser ? '<button class="btn btn-primary clone-btn" onclick="cloneDeck(' + deck.id + ')">Clone to My Decks</button>' : ''}
+              ${isOwn ? '<span style="font-size:0.8rem;color:#888">Your deck</span>' : ''}
+              ${!currentUser ? '<span style="font-size:0.8rem;color:#888">Sign in to clone</span>' : ''}
+            </div>
+          </div>`;
+        }
+
+        app.innerHTML = html;
+      } catch (err) {
+        app.innerHTML = '<div class="empty-state"><p>Failed to load public decks.</p></div>';
+      }
+    }
+
+    async function cloneDeck(deckId) {
+      try {
+        // Fetch source deck
+        const decks = await api('/rest/v1/decks?id=eq.' + deckId, {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!decks || decks.length === 0) return;
+        const src = decks[0];
+
+        // Fetch source cards
+        const srcCards = await api('/rest/v1/cards?deck_id=eq.' + deckId + '&order=sort_order.asc', {
+          headers: { 'Accept': 'application/json' }
+        });
+
+        // Create new deck
+        const result = await api('/rest/v1/decks', {
+          method: 'POST',
+          headers: { 'Prefer': 'return=representation' },
+          body: JSON.stringify({
+            name: src.name,
+            description: src.description,
+            is_public: false,
+            user_id: currentUser.id
+          })
+        });
+        const newDeckId = result[0].id;
+
+        // Copy cards
+        if (srcCards && srcCards.length > 0) {
+          const newCards = srcCards.map((c, i) => ({
+            deck_id: newDeckId,
+            front: c.front,
+            back: c.back,
+            sort_order: i
+          }));
+          await api('/rest/v1/cards', {
+            method: 'POST',
+            headers: { 'Prefer': 'return=minimal' },
+            body: JSON.stringify(newCards)
+          });
+        }
+
+        alert('Deck cloned! Check "My Decks".');
+      } catch (err) {
+        alert('Failed to clone: ' + (err.message || 'Unknown error'));
+      }
+    }
+
+    // ---- Study Mode ----
+    async function startStudy(deckId) {
+      try {
+        // Fetch all cards for this deck
+        const cards = await api('/rest/v1/cards?deck_id=eq.' + deckId + '&order=sort_order.asc', {
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!cards || cards.length === 0) return;
+
+        // Fetch progress for these cards
+        const cardIds = cards.map(c => c.id);
+        let progressRows = [];
+        if (cardIds.length > 0) {
+          progressRows = await api('/rest/v1/progress?user_id=eq.' + currentUser.id + '&card_id=in.(' + cardIds.join(',') + ')', {
+            headers: { 'Accept': 'application/json' }
+          }) || [];
+        }
+
+        studyProgress = {};
+        progressRows.forEach(p => { studyProgress[p.card_id] = p; });
+
+        // Filter to due cards: next_review <= now, or no progress yet
+        const now = new Date();
+        studyCards = cards.filter(c => {
+          const p = studyProgress[c.id];
+          if (!p) return true;
+          return new Date(p.next_review) <= now;
+        });
+
+        if (studyCards.length === 0) {
+          alert('No cards due for review! Check back later.');
+          return;
+        }
+
+        studyDeck = deckId;
+        studyIndex = 0;
+        studyFlipped = false;
+        studyStats = { again: 0, hard: 0, easy: 0 };
+
+        document.getElementById('study-screen').classList.add('open');
+        renderStudyCard();
+      } catch (err) {
+        alert('Failed to start study: ' + (err.message || 'Unknown error'));
+      }
+    }
+
+    function renderStudyCard() {
+      if (studyIndex >= studyCards.length) {
+        showStudyComplete();
+        return;
+      }
+
+      const card = studyCards[studyIndex];
+      document.getElementById('study-front-text').textContent = card.front;
+      document.getElementById('study-back-text').textContent = card.back;
+
+      studyFlipped = false;
+      document.getElementById('study-card').classList.remove('flipped');
+      document.getElementById('study-actions').style.display = 'none';
+      document.getElementById('study-tap-hint').style.display = '';
+      document.getElementById('study-complete').style.display = 'none';
+      document.getElementById('study-card-area').style.display = 'flex';
+
+      // Update progress bar and count
+      const pct = Math.round((studyIndex / studyCards.length) * 100);
+      document.getElementById('study-progress-fill').style.width = pct + '%';
+      document.getElementById('study-count').textContent = (studyIndex + 1) + ' / ' + studyCards.length;
+    }
+
+    function flipCard() {
+      if (studyIndex >= studyCards.length) return;
+      if (studyFlipped) return;
+      studyFlipped = true;
+      document.getElementById('study-card').classList.add('flipped');
+      document.getElementById('study-actions').style.display = 'flex';
+      document.getElementById('study-tap-hint').style.display = 'none';
+    }
+
+    async function rateCard(rating) {
+      const card = studyCards[studyIndex];
+      const existing = studyProgress[card.id];
+
+      let ease = existing ? parseFloat(existing.ease_factor) : 2.5;
+      let interval = existing ? existing.interval_days : 0;
+      let reviewCount = existing ? existing.review_count : 0;
+
+      if (rating === 'again') {
+        interval = 0;
+        ease = Math.max(1.3, ease - 0.2);
+        studyStats.again++;
+      } else if (rating === 'hard') {
+        interval = Math.max(1, Math.round((interval || 1) * 1.2));
+        ease = Math.max(1.3, ease - 0.1);
+        studyStats.hard++;
+      } else { // easy
+        interval = Math.max(1, Math.round((interval || 1) * ease));
+        ease = ease + 0.1;
+        studyStats.easy++;
+      }
+      reviewCount++;
+
+      const nextReview = new Date();
+      nextReview.setDate(nextReview.getDate() + interval);
+
+      try {
+        if (existing) {
+          await api('/rest/v1/progress?id=eq.' + existing.id, {
+            method: 'PATCH',
+            headers: { 'Prefer': 'return=minimal' },
+            body: JSON.stringify({
+              ease_factor: ease,
+              interval_days: interval,
+              next_review: nextReview.toISOString(),
+              review_count: reviewCount
+            })
+          });
+        } else {
+          const result = await api('/rest/v1/progress', {
+            method: 'POST',
+            headers: { 'Prefer': 'return=representation' },
+            body: JSON.stringify({
+              card_id: card.id,
+              user_id: currentUser.id,
+              ease_factor: ease,
+              interval_days: interval,
+              next_review: nextReview.toISOString(),
+              review_count: reviewCount
+            })
+          });
+          studyProgress[card.id] = result[0];
+        }
+      } catch (err) {
+        // Continue even if save fails
+      }
+
+      studyIndex++;
+      renderStudyCard();
+    }
+
+    function showStudyComplete() {
+      document.getElementById('study-card-area').style.display = 'none';
+      document.getElementById('study-actions').style.display = 'none';
+      document.getElementById('study-tap-hint').style.display = 'none';
+      document.getElementById('study-progress-fill').style.width = '100%';
+      document.getElementById('study-count').textContent = studyCards.length + ' / ' + studyCards.length;
+
+      const total = studyStats.again + studyStats.hard + studyStats.easy;
+      const el = document.getElementById('study-complete');
+      el.style.display = '';
+      el.innerHTML = `
+        <h2>Session complete!</h2>
+        <div class="stats">
+          <p>Cards reviewed: <strong>${total}</strong></p>
+          <p style="color:#28a745">Easy: ${studyStats.easy}</p>
+          <p style="color:#e0a800">Hard: ${studyStats.hard}</p>
+          <p style="color:#dc3545">Again: ${studyStats.again}</p>
+        </div>
+        <button class="btn btn-primary" onclick="exitStudy()" style="margin-top:1.5rem">Done</button>
+      `;
+    }
+
+    function exitStudy() {
+      document.getElementById('study-screen').classList.remove('open');
+      showDecks();
+    }
+
+    // ---- Init ----
+    async function init() {
+      await initAuth();
+      showDecks();
+    }
+
+    init();
+  </script>
+</body>
+</html>

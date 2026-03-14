@@ -1,0 +1,14 @@
+{
+  "policies": [
+    {
+      "template": "public_read_write",
+      "tables": [
+        { "table": "rooms" },
+        { "table": "questions" },
+        { "table": "players" },
+        { "table": "answers" }
+      ]
+    }
+  ],
+  "notes": "All tables public_read_write for multiplayer access without auth. Players join by room code. In a production version, consider adding auth and user_owns_rows for answers."
+}

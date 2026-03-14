@@ -1,0 +1,17 @@
+{
+  "policies": [
+    {
+      "template": "public_read",
+      "tables": [
+        { "table": "photos" }
+      ]
+    },
+    {
+      "template": "user_owns_rows",
+      "tables": [
+        { "table": "photos", "owner_column": "user_id" }
+      ]
+    }
+  ],
+  "notes": "public_read: anyone can view the gallery. user_owns_rows: authenticated users can upload and delete their own photos. For private walls, replace public_read with user_owns_rows for read access too."
+}

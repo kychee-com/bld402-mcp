@@ -1,0 +1,11 @@
+{
+  "policies": [
+    {
+      "template": "public_read_write",
+      "tables": [
+        { "table": "todos" }
+      ]
+    }
+  ],
+  "notes": "Default: public_read_write (anyone with the link can add/edit/complete tasks). Switch to user_owns_rows if auth is enabled and users should only manage their own tasks."
+}

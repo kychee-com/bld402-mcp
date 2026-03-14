@@ -1,0 +1,17 @@
+{
+  "policies": [
+    {
+      "template": "user_owns_rows",
+      "tables": [
+        { "table": "members", "owner_column": "user_id" }
+      ]
+    },
+    {
+      "template": "public_read",
+      "tables": [
+        { "table": "groups" }
+      ]
+    }
+  ],
+  "notes": "user_owns_rows on members: users can only read/update their own member row (including assigned_to — only visible to the row owner). public_read on groups: anyone can look up a group by code to join. The draw-names function uses service_key to bypass RLS and write all assigned_to values."
+}

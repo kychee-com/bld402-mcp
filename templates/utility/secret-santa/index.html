@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{APP_NAME}} — Secret Santa</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1a1a1a;
+      background: #f8f9fa;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 0.5rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.1rem; }
+    .auth-bar { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+    .auth-bar button {
+      padding: 0.3rem 0.75rem;
+      border: 1px solid #d0dbe5;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #333;
+    }
+    .auth-bar button.primary { background: #0066cc; color: #fff; border-color: #0066cc; }
+    .auth-bar .user-email { color: #666; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    main { max-width: 36rem; margin: 0 auto; padding: 0.75rem 1rem; flex: 1; overflow: auto; width: 100%; }
+
+    /* Auth modal */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+      z-index: 100; align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #fff; border-radius: 12px; padding: 1.5rem;
+      width: 90%; max-width: 360px; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .modal h2 { font-size: 1.1rem; margin-bottom: 1rem; }
+    .modal input, .modal textarea {
+      width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 1rem; margin-bottom: 0.5rem;
+      font-family: inherit;
+    }
+    .modal input:focus, .modal textarea:focus { outline: none; border-color: #0066cc; }
+    .modal .btn { width: 100%; margin-top: 0.5rem; }
+    .modal .toggle-link {
+      display: block; text-align: center; margin-top: 0.75rem;
+      font-size: 0.85rem; color: #0066cc; cursor: pointer; background: none; border: none;
+    }
+    .modal .close-btn {
+      position: absolute; top: 0.75rem; right: 0.75rem;
+      background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #999;
+    }
+    .modal-inner { position: relative; }
+    .error-msg { color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem; display: none; }
+
+    /* Buttons */
+    .btn {
+      padding: 0.5rem 1rem; border: none; border-radius: 6px;
+      font-size: 0.9rem; cursor: pointer;
+    }
+    .btn-primary { background: #0066cc; color: #fff; }
+    .btn-primary:hover { background: #0055aa; }
+    .btn-primary:disabled { background: #88b8e8; cursor: not-allowed; }
+    .btn-outline {
+      background: none; border: 1px solid #d0dbe5; color: #333; padding: 0.35rem 0.65rem;
+      border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+    }
+    .btn-danger { background: #dc3545; color: #fff; }
+    .btn-danger:hover { background: #c82333; }
+
+    /* Landing */
+    .landing {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; text-align: center; padding: 3rem 1rem; gap: 1.5rem;
+    }
+    .landing h2 { font-size: 1.6rem; }
+    .landing p { color: #666; font-size: 0.95rem; max-width: 320px; }
+    .landing-buttons { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
+    .landing-buttons .btn { padding: 0.7rem 1.5rem; font-size: 1rem; }
+
+    /* Cards / Panels */
+    .card {
+      background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+      padding: 1.25rem; margin-bottom: 0.75rem;
+    }
+    .card h3 { font-size: 1rem; margin-bottom: 0.75rem; }
+
+    /* Join code display */
+    .join-code {
+      font-size: 2rem; font-weight: 700; letter-spacing: 0.3rem;
+      background: #f0f4f8; border: 2px dashed #0066cc; border-radius: 10px;
+      padding: 0.75rem 1.5rem; display: inline-block; cursor: pointer;
+      user-select: all; position: relative;
+    }
+    .join-code:hover { background: #e6eef6; }
+    .join-code-hint { font-size: 0.8rem; color: #888; margin-top: 0.4rem; }
+    .copied-toast {
+      position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+      background: #333; color: #fff; padding: 0.5rem 1.25rem; border-radius: 20px;
+      font-size: 0.85rem; z-index: 200; opacity: 0; transition: opacity 0.3s;
+    }
+    .copied-toast.show { opacity: 1; }
+
+    /* Member list */
+    .member-list { list-style: none; }
+    .member-list li {
+      padding: 0.5rem 0; border-bottom: 1px solid #f0f0f0;
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.9rem;
+    }
+    .member-list li:last-child { border-bottom: none; }
+    .member-tag { font-size: 0.75rem; color: #0066cc; background: #e6f0fa; padding: 0.15rem 0.5rem; border-radius: 10px; }
+    .member-status { font-size: 0.75rem; color: #888; }
+    .member-status.viewed { color: #28a745; }
+
+    /* Assignment reveal */
+    .assignment-card {
+      text-align: center; padding: 2rem 1rem;
+    }
+    .assignment-card .gift-for {
+      font-size: 1.4rem; font-weight: 700; color: #0066cc; margin: 0.75rem 0;
+    }
+    .assignment-card .wishlist-box {
+      background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px;
+      padding: 1rem; text-align: left; margin-top: 1rem; white-space: pre-wrap;
+      word-break: break-word; font-size: 0.9rem; line-height: 1.5;
+    }
+    .assignment-card .wishlist-label {
+      font-size: 0.8rem; color: #888; text-transform: uppercase; letter-spacing: 0.05rem;
+      margin-bottom: 0.35rem;
+    }
+
+    /* Budget badge */
+    .budget-badge { font-size: 0.8rem; color: #666; background: #f0f0f0; padding: 0.2rem 0.6rem; border-radius: 10px; }
+
+    /* Form spacing */
+    .form-group { margin-bottom: 0.75rem; }
+    .form-group label { display: block; font-size: 0.85rem; color: #555; margin-bottom: 0.25rem; }
+    .form-group textarea { resize: vertical; min-height: 4rem; }
+
+    .empty-state { text-align: center; padding: 3rem 1rem; color: #999; }
+    .loading { text-align: center; padding: 2rem; color: #888; }
+
+    footer { text-align: center; padding: 0.35rem; font-size: 0.75rem; color: #888; flex-shrink: 0; }
+    footer a { color: #0066cc; text-decoration: none; }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 600px) { main { padding: 0.5rem; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>{{APP_NAME}}</h1>
+    <div class="auth-bar">
+      <span class="no-auth-only">
+        <button class="primary" onclick="openAuthModal()">Sign In</button>
+      </span>
+      <span class="auth-only" style="display:none">
+        <span class="user-email" id="user-email"></span>
+        <button onclick="doLogout()">Sign Out</button>
+      </span>
+    </div>
+  </header>
+
+  <!-- Auth Modal -->
+  <div class="modal-overlay" id="auth-modal">
+    <div class="modal">
+      <div class="modal-inner">
+        <button class="close-btn" onclick="closeAuthModal()">&times;</button>
+        <h2 id="auth-modal-title">Sign In</h2>
+        <form id="auth-form" onsubmit="return handleAuth(event)">
+          <input type="email" id="auth-email" placeholder="Email" required>
+          <input type="password" id="auth-password" placeholder="Password (min 6 chars)" required minlength="6">
+          <p class="error-msg" id="auth-error"></p>
+          <button type="submit" class="btn btn-primary" id="auth-submit-btn">Sign In</button>
+        </form>
+        <button class="toggle-link" id="auth-toggle" onclick="toggleAuthMode()">Need an account? Sign Up</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Copied toast -->
+  <div class="copied-toast" id="copied-toast">Code copied!</div>
+
+  <main>
+    <!-- Screen: Landing -->
+    <div id="screen-landing" class="landing">
+      <h2>Secret Santa</h2>
+      <p>Organize a gift exchange with friends, family, or coworkers. Names are drawn at random — no peeking!</p>
+      <div class="landing-buttons">
+        <button class="btn btn-primary" onclick="startOrganize()">Organize a Group</button>
+        <button class="btn btn-outline" onclick="startJoin()" style="padding:0.7rem 1.5rem;font-size:1rem">Join a Group</button>
+      </div>
+    </div>
+
+    <!-- Screen: Organize (create group form) -->
+    <div id="screen-organize" class="hidden">
+      <div class="card">
+        <h3>Create a Group</h3>
+        <div class="form-group">
+          <label for="org-group-name">Group Name</label>
+          <input id="org-group-name" placeholder="e.g. Office Party 2026" required>
+        </div>
+        <div class="form-group">
+          <label for="org-budget">Budget Suggestion (optional)</label>
+          <input id="org-budget" placeholder="e.g. $25">
+        </div>
+        <div class="form-group">
+          <label for="org-display-name">Your Display Name</label>
+          <input id="org-display-name" placeholder="e.g. Alex">
+        </div>
+        <div class="form-group">
+          <label for="org-wishlist">Your Wishlist (optional)</label>
+          <textarea id="org-wishlist" placeholder="Things you'd like to receive..."></textarea>
+        </div>
+        <p class="error-msg" id="org-error"></p>
+        <button class="btn btn-primary" id="org-submit" onclick="createGroup()">Create Group</button>
+      </div>
+    </div>
+
+    <!-- Screen: Join (enter code) -->
+    <div id="screen-join" class="hidden">
+      <div class="card">
+        <h3>Join a Group</h3>
+        <div class="form-group">
+          <label for="join-code-input">Enter 6-character code</label>
+          <input id="join-code-input" placeholder="ABC123" maxlength="6" style="text-transform:uppercase;letter-spacing:0.15rem;font-size:1.1rem;text-align:center">
+        </div>
+        <p class="error-msg" id="join-error"></p>
+        <button class="btn btn-primary" id="join-lookup-btn" onclick="lookupGroup()">Find Group</button>
+      </div>
+    </div>
+
+    <!-- Screen: Join details (display name + wishlist) -->
+    <div id="screen-join-details" class="hidden">
+      <div class="card">
+        <h3>Join: <span id="join-group-name"></span></h3>
+        <p id="join-budget-info" style="font-size:0.85rem;color:#666;margin-bottom:0.75rem"></p>
+        <div class="form-group">
+          <label for="join-display-name">Your Display Name</label>
+          <input id="join-display-name" placeholder="e.g. Alex">
+        </div>
+        <div class="form-group">
+          <label for="join-wishlist">Your Wishlist (optional)</label>
+          <textarea id="join-wishlist" placeholder="Things you'd like to receive..."></textarea>
+        </div>
+        <p class="error-msg" id="join-detail-error"></p>
+        <button class="btn btn-primary" id="join-submit-btn" onclick="joinGroup()">Join Group</button>
+      </div>
+    </div>
+
+    <!-- Screen: Lobby (organizer or member waiting) -->
+    <div id="screen-lobby" class="hidden">
+      <div class="card" style="text-align:center">
+        <h3 id="lobby-group-name"></h3>
+        <span class="budget-badge" id="lobby-budget" style="display:none"></span>
+        <div style="margin:1rem 0">
+          <div class="join-code" id="lobby-code" onclick="copyCode()"></div>
+          <p class="join-code-hint">Tap code to copy. Share with your group!</p>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Members (<span id="lobby-count">0</span>)</h3>
+        <ul class="member-list" id="lobby-members"></ul>
+      </div>
+      <div id="draw-section" class="hidden" style="text-align:center;margin-top:0.5rem">
+        <button class="btn btn-primary" id="draw-btn" onclick="drawNames()" disabled style="padding:0.7rem 2rem;font-size:1rem">Draw Names</button>
+        <p id="draw-hint" style="font-size:0.8rem;color:#888;margin-top:0.4rem">Need at least 3 members to draw</p>
+        <p class="error-msg" id="draw-error"></p>
+      </div>
+      <div id="waiting-section" class="hidden" style="text-align:center;margin-top:0.5rem">
+        <p style="color:#888;font-size:0.9rem">Waiting for the organizer to draw names...</p>
+      </div>
+    </div>
+
+    <!-- Screen: Assignment (member sees who they got) -->
+    <div id="screen-assignment" class="hidden">
+      <div class="card assignment-card">
+        <h3>Your Secret Santa Assignment</h3>
+        <p style="color:#666;margin-top:0.5rem">You are getting a gift for:</p>
+        <p class="gift-for" id="assign-name"></p>
+        <div id="assign-wishlist-section">
+          <p class="wishlist-label">Their Wishlist</p>
+          <div class="wishlist-box" id="assign-wishlist"></div>
+        </div>
+        <span class="budget-badge" id="assign-budget" style="display:inline-block;margin-top:1rem"></span>
+      </div>
+    </div>
+
+    <!-- Screen: Organizer post-draw (status view) -->
+    <div id="screen-organizer-status" class="hidden">
+      <div class="card" style="text-align:center">
+        <h3 id="status-group-name"></h3>
+        <p style="color:#28a745;font-weight:600;margin-top:0.25rem">Names have been drawn!</p>
+        <span class="budget-badge" id="status-budget" style="display:none;margin-top:0.5rem"></span>
+      </div>
+      <div class="card">
+        <h3>Assignment Status</h3>
+        <ul class="member-list" id="status-members"></ul>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    Built with <a href="https://bld402.com">bld402</a> + <a href="https://run402.com">run402</a>
+  </footer>
+
+  <script>
+    const CONFIG = {
+      API_URL: '{{API_URL}}',
+      ANON_KEY: '{{ANON_KEY}}',
+      // SERVICE_KEY is required for the draw-names function only.
+      // The agent deploying this app must replace this placeholder with the
+      // actual service_key from the run402 project dashboard. The draw-names
+      // Lambda uses it to bypass RLS and write all member assignments.
+      SERVICE_KEY: '{{SERVICE_KEY}}'
+    };
+
+    let currentUser = null;
+    let isSignup = false;
+
+    // Current group/member state
+    let activeGroup = null;   // { id, name, code, budget, organizer_id, status }
+    let activeMember = null;  // { id, group_id, user_id, display_name, wishlist, assigned_to, viewed_assignment }
+    let isOrganizer = false;
+    let lobbyInterval = null;
+
+    function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+    // ---- API helpers ----
+    async function api(path, options = {}) {
+      const headers = {
+        'apikey': CONFIG.ANON_KEY,
+        'Content-Type': 'application/json',
+        ...options.headers
+      };
+      const token = localStorage.getItem('access_token');
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+
+      const res = await fetch(CONFIG.API_URL + path, { ...options, headers });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+      }
+      if (res.status === 204) return null;
+      return res.json();
+    }
+
+    // ---- Auth ----
+    function openAuthModal(callback) {
+      isSignup = false;
+      authCallback = callback || null;
+      document.getElementById('auth-modal-title').textContent = 'Sign In';
+      document.getElementById('auth-submit-btn').textContent = 'Sign In';
+      document.getElementById('auth-toggle').textContent = 'Need an account? Sign Up';
+      document.getElementById('auth-error').style.display = 'none';
+      document.getElementById('auth-form').reset();
+      document.getElementById('auth-modal').classList.add('open');
+    }
+    let authCallback = null;
+
+    function closeAuthModal() {
+      document.getElementById('auth-modal').classList.remove('open');
+    }
+
+    function toggleAuthMode() {
+      isSignup = !isSignup;
+      document.getElementById('auth-modal-title').textContent = isSignup ? 'Sign Up' : 'Sign In';
+      document.getElementById('auth-submit-btn').textContent = isSignup ? 'Sign Up' : 'Sign In';
+      document.getElementById('auth-toggle').textContent = isSignup
+        ? 'Already have an account? Sign In'
+        : 'Need an account? Sign Up';
+      document.getElementById('auth-error').style.display = 'none';
+    }
+
+    async function handleAuth(e) {
+      e.preventDefault();
+      const email = document.getElementById('auth-email').value;
+      const password = document.getElementById('auth-password').value;
+      const errEl = document.getElementById('auth-error');
+      const btn = document.getElementById('auth-submit-btn');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+
+      try {
+        if (isSignup) {
+          await api('/auth/v1/signup', { method: 'POST', body: JSON.stringify({ email, password }) });
+        }
+        const data = await api('/auth/v1/token', {
+          method: 'POST',
+          body: JSON.stringify({ email, password })
+        });
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        currentUser = data.user;
+        updateAuthUI();
+        closeAuthModal();
+        if (authCallback) { authCallback(); authCallback = null; }
+      } catch (err) {
+        errEl.textContent = err.message || 'Authentication failed.';
+        errEl.style.display = '';
+      } finally {
+        btn.disabled = false;
+      }
+      return false;
+    }
+
+    async function doLogout() {
+      stopLobbyPolling();
+      const rt = localStorage.getItem('refresh_token');
+      if (rt) {
+        try { await api('/auth/v1/logout', { method: 'POST', body: JSON.stringify({ refresh_token: rt }) }); } catch(e) {}
+      }
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      currentUser = null;
+      activeGroup = null;
+      activeMember = null;
+      isOrganizer = false;
+      updateAuthUI();
+      showScreen('landing');
+    }
+
+    function updateAuthUI() {
+      document.querySelectorAll('.auth-only').forEach(el => el.style.display = currentUser ? '' : 'none');
+      document.querySelectorAll('.no-auth-only').forEach(el => el.style.display = currentUser ? 'none' : '');
+      const emailEl = document.getElementById('user-email');
+      if (emailEl) emailEl.textContent = currentUser ? currentUser.email : '';
+    }
+
+    async function initAuth() {
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        const rt = localStorage.getItem('refresh_token');
+        if (rt) {
+          try {
+            const data = await api('/auth/v1/token?grant_type=refresh_token', {
+              method: 'POST',
+              body: JSON.stringify({ refresh_token: rt })
+            });
+            localStorage.setItem('access_token', data.access_token);
+            localStorage.setItem('refresh_token', data.refresh_token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            currentUser = data.user;
+          } catch(e) {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            localStorage.removeItem('user');
+          }
+        }
+      }
+      updateAuthUI();
+    }
+
+    // ---- Screen navigation ----
+    function showScreen(name) {
+      const screens = ['landing', 'organize', 'join', 'join-details', 'lobby', 'assignment', 'organizer-status'];
+      screens.forEach(s => {
+        document.getElementById('screen-' + s).classList.toggle('hidden', s !== name);
+      });
+    }
+
+    // ---- Organize flow ----
+    function startOrganize() {
+      if (!currentUser) {
+        openAuthModal(() => showScreen('organize'));
+        return;
+      }
+      showScreen('organize');
+    }
+
+    function generateCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+      return code;
+    }
+
+    async function createGroup() {
+      const name = document.getElementById('org-group-name').value.trim();
+      const displayName = document.getElementById('org-display-name').value.trim();
+      const budget = document.getElementById('org-budget').value.trim();
+      const wishlist = document.getElementById('org-wishlist').value.trim();
+      const errEl = document.getElementById('org-error');
+      const btn = document.getElementById('org-submit');
+      errEl.style.display = 'none';
+
+      if (!name) { errEl.textContent = 'Group name is required.'; errEl.style.display = ''; return; }
+      if (!displayName) { errEl.textContent = 'Display name is required.'; errEl.style.display = ''; return; }
+
+      btn.disabled = true;
+      btn.textContent = 'Creating...';
+
+      try {
+        const code = generateCode();
+        const groups = await api('/rest/v1/groups?select=id,name,code,budget,organizer_id,status', {
+          method: 'POST',
+          headers: { 'Prefer': 'return=representation' },
+          body: JSON.stringify({
+            name: name,
+            code: code,
+            budget: budget || null,
+            organizer_id: currentUser.id
+          })
+        });
+        activeGroup = groups[0];
+        isOrganizer = true;
+
+        // Add organizer as first member
+        const members = await api('/rest/v1/members?select=*', {
+          method: 'POST',
+          headers: { 'Prefer': 'return=representation' },
+          body: JSON.stringify({
+            group_id: activeGroup.id,
+            user_id: currentUser.id,
+            display_name: displayName,
+            wishlist: wishlist || null
+          })
+        });
+        activeMember = members[0];
+
+        enterLobby();
+      } catch (err) {
+        errEl.textContent = err.message || 'Failed to create group.';
+        errEl.style.display = '';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Group';
+      }
+    }
+
+    // ---- Join flow ----
+    function startJoin() {
+      if (!currentUser) {
+        openAuthModal(() => showScreen('join'));
+        return;
+      }
+      showScreen('join');
+    }
+
+    async function lookupGroup() {
+      const code = document.getElementById('join-code-input').value.trim().toUpperCase();
+      const errEl = document.getElementById('join-error');
+      const btn = document.getElementById('join-lookup-btn');
+      errEl.style.display = 'none';
+
+      if (code.length !== 6) { errEl.textContent = 'Code must be 6 characters.'; errEl.style.display = ''; return; }
+
+      btn.disabled = true;
+      try {
+        const groups = await api('/rest/v1/groups?code=eq.' + encodeURIComponent(code) + '&select=id,name,code,budget,organizer_id,status');
+        if (!groups || groups.length === 0) {
+          errEl.textContent = 'No group found with that code.';
+          errEl.style.display = '';
+          return;
+        }
+        activeGroup = groups[0];
+
+        if (activeGroup.status === 'drawn') {
+          errEl.textContent = 'This group has already drawn names. You cannot join.';
+          errEl.style.display = '';
+          return;
+        }
+
+        // Check if user already a member
+        const existing = await api('/rest/v1/members?group_id=eq.' + activeGroup.id + '&user_id=eq.' + currentUser.id + '&select=*');
+        if (existing && existing.length > 0) {
+          activeMember = existing[0];
+          isOrganizer = activeGroup.organizer_id === currentUser.id;
+          enterLobby();
+          return;
+        }
+
+        // Show join details form
+        document.getElementById('join-group-name').textContent = activeGroup.name;
+        document.getElementById('join-budget-info').textContent = activeGroup.budget
+          ? 'Suggested budget: ' + activeGroup.budget
+          : '';
+        showScreen('join-details');
+      } catch (err) {
+        errEl.textContent = err.message || 'Failed to look up group.';
+        errEl.style.display = '';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function joinGroup() {
+      const displayName = document.getElementById('join-display-name').value.trim();
+      const wishlist = document.getElementById('join-wishlist').value.trim();
+      const errEl = document.getElementById('join-detail-error');
+      const btn = document.getElementById('join-submit-btn');
+      errEl.style.display = 'none';
+
+      if (!displayName) { errEl.textContent = 'Display name is required.'; errEl.style.display = ''; return; }
+
+      btn.disabled = true;
+      btn.textContent = 'Joining...';
+
+      try {
+        const members = await api('/rest/v1/members?select=*', {
+          method: 'POST',
+          headers: { 'Prefer': 'return=representation' },
+          body: JSON.stringify({
+            group_id: activeGroup.id,
+            user_id: currentUser.id,
+            display_name: displayName,
+            wishlist: wishlist || null
+          })
+        });
+        activeMember = members[0];
+        isOrganizer = false;
+        enterLobby();
+      } catch (err) {
+        errEl.textContent = err.message || 'Failed to join group.';
+        errEl.style.display = '';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Join Group';
+      }
+    }
+
+    // ---- Lobby ----
+    function enterLobby() {
+      showScreen('lobby');
+      document.getElementById('lobby-group-name').textContent = activeGroup.name;
+      document.getElementById('lobby-code').textContent = activeGroup.code;
+
+      const budgetEl = document.getElementById('lobby-budget');
+      if (activeGroup.budget) {
+        budgetEl.textContent = 'Budget: ' + activeGroup.budget;
+        budgetEl.style.display = '';
+      } else {
+        budgetEl.style.display = 'none';
+      }
+
+      document.getElementById('draw-section').classList.toggle('hidden', !isOrganizer);
+      document.getElementById('waiting-section').classList.toggle('hidden', isOrganizer);
+
+      pollLobby();
+      startLobbyPolling();
+    }
+
+    function startLobbyPolling() {
+      stopLobbyPolling();
+      lobbyInterval = setInterval(pollLobby, 3000);
+    }
+
+    function stopLobbyPolling() {
+      if (lobbyInterval) { clearInterval(lobbyInterval); lobbyInterval = null; }
+    }
+
+    async function pollLobby() {
+      try {
+        // Refresh group status
+        const groups = await api('/rest/v1/groups?id=eq.' + activeGroup.id + '&select=id,name,code,budget,organizer_id,status');
+        if (groups && groups.length > 0) {
+          activeGroup = groups[0];
+        }
+
+        if (activeGroup.status === 'drawn') {
+          stopLobbyPolling();
+          await loadPostDrawScreen();
+          return;
+        }
+
+        // Fetch members (public fields only — RLS limits what we see)
+        // Use apikey-only request to get member list from the group
+        const members = await api('/rest/v1/members?group_id=eq.' + activeGroup.id + '&select=id,display_name,joined_at&order=joined_at.asc');
+        renderMemberList(members);
+
+        // Update draw button
+        if (isOrganizer) {
+          const drawBtn = document.getElementById('draw-btn');
+          const drawHint = document.getElementById('draw-hint');
+          if (members.length >= 3) {
+            drawBtn.disabled = false;
+            drawHint.textContent = members.length + ' members ready';
+            drawHint.style.color = '#28a745';
+          } else {
+            drawBtn.disabled = true;
+            drawHint.textContent = 'Need at least 3 members (' + members.length + ' so far)';
+            drawHint.style.color = '#888';
+          }
+        }
+      } catch (err) {
+        // Silently retry on next poll
+      }
+    }
+
+    function renderMemberList(members) {
+      const list = document.getElementById('lobby-members');
+      document.getElementById('lobby-count').textContent = members.length;
+      list.innerHTML = members.map(m => {
+        const isMe = activeMember && m.id === activeMember.id;
+        const isOrg = activeGroup && m.display_name && m.id === members[0].id; // first joined is organizer
+        return `<li>
+          <span>${esc(m.display_name)}${isMe ? ' <span class="member-tag">You</span>' : ''}</span>
+          ${isOrg ? '<span class="member-status">Organizer</span>' : ''}
+        </li>`;
+      }).join('');
+    }
+
+    // ---- Draw Names ----
+    async function drawNames() {
+      const btn = document.getElementById('draw-btn');
+      const errEl = document.getElementById('draw-error');
+      errEl.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Drawing...';
+
+      try {
+        const res = await fetch(CONFIG.API_URL + '/functions/v1/draw-names', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': CONFIG.ANON_KEY,
+            'Authorization': 'Bearer ' + localStorage.getItem('access_token')
+          },
+          body: JSON.stringify({
+            group_id: activeGroup.id,
+            service_key: CONFIG.SERVICE_KEY
+          })
+        });
+
+        const result = await res.json();
+        if (!res.ok) {
+          throw new Error(result.error || 'Draw failed');
+        }
+
+        stopLobbyPolling();
+        await loadPostDrawScreen();
+      } catch (err) {
+        errEl.textContent = err.message || 'Failed to draw names.';
+        errEl.style.display = '';
+        btn.disabled = false;
+        btn.textContent = 'Draw Names';
+      }
+    }
+
+    // ---- Post-draw screens ----
+    async function loadPostDrawScreen() {
+      if (isOrganizer) {
+        await loadOrganizerStatus();
+      } else {
+        await loadAssignment();
+      }
+    }
+
+    async function loadAssignment() {
+      try {
+        // Fetch own member row (RLS: user can only see their own)
+        const rows = await api('/rest/v1/members?group_id=eq.' + activeGroup.id + '&user_id=eq.' + currentUser.id + '&select=*');
+        if (!rows || rows.length === 0) return;
+        activeMember = rows[0];
+
+        if (!activeMember.assigned_to) {
+          // Not assigned yet — shouldn't happen but handle gracefully
+          return;
+        }
+
+        // Fetch the assigned-to member's info
+        // We need their display_name and wishlist. Because of RLS (user_owns_rows on members),
+        // we can't read another user's row directly. The assignment info needs to be readable.
+        // We'll use a separate request with the assigned_to id.
+        // NOTE: If RLS blocks this, the agent should add a SELECT policy for assigned members.
+        const assigned = await api('/rest/v1/members?id=eq.' + activeMember.assigned_to + '&select=display_name,wishlist');
+        if (!assigned || assigned.length === 0) {
+          // Fallback: show ID only
+          document.getElementById('assign-name').textContent = 'Member #' + activeMember.assigned_to;
+          document.getElementById('assign-wishlist-section').classList.add('hidden');
+        } else {
+          document.getElementById('assign-name').textContent = assigned[0].display_name;
+          if (assigned[0].wishlist) {
+            document.getElementById('assign-wishlist').textContent = assigned[0].wishlist;
+            document.getElementById('assign-wishlist-section').style.display = '';
+          } else {
+            document.getElementById('assign-wishlist-section').style.display = 'none';
+          }
+        }
+
+        const budgetEl = document.getElementById('assign-budget');
+        if (activeGroup.budget) {
+          budgetEl.textContent = 'Budget: ' + activeGroup.budget;
+          budgetEl.style.display = '';
+        } else {
+          budgetEl.style.display = 'none';
+        }
+
+        showScreen('assignment');
+
+        // Mark viewed_assignment = true
+        if (!activeMember.viewed_assignment) {
+          await api('/rest/v1/members?id=eq.' + activeMember.id, {
+            method: 'PATCH',
+            headers: { 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ viewed_assignment: true })
+          });
+        }
+      } catch (err) {
+        // Stay on current screen
+      }
+    }
+
+    async function loadOrganizerStatus() {
+      try {
+        document.getElementById('status-group-name').textContent = activeGroup.name;
+        const statusBudget = document.getElementById('status-budget');
+        if (activeGroup.budget) {
+          statusBudget.textContent = 'Budget: ' + activeGroup.budget;
+          statusBudget.style.display = '';
+        } else {
+          statusBudget.style.display = 'none';
+        }
+
+        // Fetch all members — organizer can see via service key context,
+        // but since we're client-side, we rely on RLS.
+        // The organizer can see their own row + public fields.
+        // For status, we need viewed_assignment — this may require an RLS policy
+        // that lets group organizers read member rows. If not available, we show
+        // names only and the agent should configure appropriate RLS.
+        const members = await api('/rest/v1/members?group_id=eq.' + activeGroup.id + '&select=id,display_name,viewed_assignment&order=joined_at.asc');
+        const list = document.getElementById('status-members');
+        list.innerHTML = members.map(m => {
+          const viewed = m.viewed_assignment;
+          return `<li>
+            <span>${esc(m.display_name)}</span>
+            <span class="member-status ${viewed ? 'viewed' : ''}">${viewed ? 'Viewed' : 'Not yet viewed'}</span>
+          </li>`;
+        }).join('');
+
+        showScreen('organizer-status');
+      } catch (err) {
+        // Stay on current screen
+      }
+    }
+
+    // ---- Copy code ----
+    function copyCode() {
+      const code = activeGroup ? activeGroup.code : '';
+      if (!code) return;
+      navigator.clipboard.writeText(code).then(() => {
+        const toast = document.getElementById('copied-toast');
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 1500);
+      }).catch(() => {});
+    }
+
+    // ---- Init ----
+    async function init() {
+      await initAuth();
+      showScreen('landing');
+    }
+
+    init();
+  </script>
+</body>
+</html>
