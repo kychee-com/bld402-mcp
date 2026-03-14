@@ -36,6 +36,10 @@ import {
   uploadFileSchema,
   handleUploadFile,
 } from "./tools/upload-file.js";
+import {
+  generateImageSchema,
+  handleGenerateImage,
+} from "./tools/generate-image.js";
 import { statusSchema, handleStatus } from "./tools/status.js";
 
 const server = new McpServer({
@@ -135,6 +139,15 @@ server.tool(
   "Upload a file to project storage. Returns the storage key and size.",
   uploadFileSchema,
   async (args) => handleUploadFile(args),
+);
+
+// ─── Image generation tools ────────────────────────────────────────────────
+
+server.tool(
+  "bld402_generate_image",
+  "Generate a PNG image from a text prompt. Costs $0.03 USDC (paid automatically from wallet). Aspect ratios: square (1:1), landscape (16:9), portrait (9:16).",
+  generateImageSchema,
+  async (args) => handleGenerateImage(args),
 );
 
 // ─── Deploy tools ──────────────────────────────────────────────────────────

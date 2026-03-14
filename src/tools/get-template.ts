@@ -38,10 +38,19 @@ export async function handleGetTemplate(args: { name: string }) {
   ];
 
   if (tpl.functions && Object.keys(tpl.functions).length > 0) {
+    const fnNames = Object.keys(tpl.functions);
     lines.push(``, `### Serverless Functions`);
+    lines.push(
+      ``,
+      `**IMPORTANT:** This template includes ${fnNames.length} serverless function(s) that must be deployed separately using \`bld402_deploy_function\`. Deploy each one after creating tables and before deploying the site.`,
+      ``,
+    );
     for (const [name, code] of Object.entries(tpl.functions)) {
-      lines.push(``, `#### ${name}.js`, "```javascript", code, "```");
+      lines.push(`#### ${name}.js`, "```javascript", code, "```", ``);
     }
+    lines.push(
+      `**Deploy order:** \`bld402_run_sql\` → \`bld402_setup_rls\` → ${fnNames.map((n) => `\`bld402_deploy_function("${n}", code)\``).join(" → ")} → \`bld402_deploy\``,
+    );
   }
 
   lines.push(``, `### README`, tpl.readme);
