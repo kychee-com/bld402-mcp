@@ -65,6 +65,13 @@ export async function handleUpdate(args: {
     );
   }
 
+  // Validate at least one thing to update
+  if (!args.files && !args.sql && !args.functions && !args.secrets) {
+    return error(
+      `Nothing to update. Provide at least one of: files, sql, functions, or secrets.`,
+    );
+  }
+
   // Validate files have index.html (only when files are provided)
   if (args.files && !args.files.some((f) => f.file === "index.html")) {
     return error(`Files must include index.html.`);
