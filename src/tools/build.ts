@@ -295,7 +295,7 @@ export async function handleBuild(args: {
   // --- Step 6: Inject anon_key into HTML and redeploy ---
   let anonKeyWarning: string | undefined;
   if (siteFiles && result.anon_key) {
-    const injectedFiles = injectAnonKey(siteFiles, result.anon_key, apiBase, result.project_id);
+    const injectedFiles = injectAnonKey(siteFiles, result.anon_key, apiBase, result.project_id, args.name);
 
     // Check if injection actually changed any files
     const needsRedeploy = injectedFiles.some((f, i) => f.data !== siteFiles![i].data);

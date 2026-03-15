@@ -173,7 +173,7 @@ export async function handleUpdate(args: {
   if (args.files) {
     // --- Step 4: Inject anon_key into HTML ---
     const injectedFiles = session.anonKey
-      ? injectAnonKey(args.files, session.anonKey, getApiBase(), session.projectId!)
+      ? injectAnonKey(args.files, session.anonKey, getApiBase(), session.projectId!, session.projectName || undefined)
       : args.files;
 
     // --- Step 5: Redeploy site ---
