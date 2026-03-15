@@ -6,10 +6,11 @@ import { browseSchema, handleBrowse } from "./tools/browse.js";
 import { buildSchema, handleBuild } from "./tools/build.js";
 import { updateSchema, handleUpdate } from "./tools/update.js";
 import { statusSchema, handleStatus } from "./tools/status.js";
+import { removeSchema, handleRemove } from "./tools/remove.js";
 
 const server = new McpServer({
   name: "bld402",
-  version: "0.2.0",
+  version: "0.3.0",
 });
 
 // ─── Browse templates & guide ───────────────────────────────────────────────
@@ -46,6 +47,15 @@ server.tool(
   "Check what's deployed: wallet, project, database tables, live URL.",
   statusSchema,
   async (args) => handleStatus(args),
+);
+
+// ─── Remove & clean up ──────────────────────────────────────────────────────
+
+server.tool(
+  "bld402_remove",
+  "Delete the current app and clean up. Releases the subdomain and archives the project.",
+  removeSchema,
+  async (args) => handleRemove(args),
 );
 
 const transport = new StdioServerTransport();
