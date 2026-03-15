@@ -6,8 +6,7 @@ import {
   chmodSync,
 } from "node:fs";
 import { dirname } from "node:path";
-import { randomBytes, createECDH } from "node:crypto";
-import { keccak_256 } from "@noble/hashes/sha3.js";
+import { randomBytes } from "node:crypto";
 import { privateKeyToAccount } from "viem/accounts";
 import { createPublicClient, http } from "viem";
 import { baseSepolia } from "viem/chains";
@@ -42,14 +41,8 @@ export function createWallet(): WalletData {
   const privateKeyBytes = randomBytes(32);
   const privateKey = `0x${privateKeyBytes.toString("hex")}` as `0x${string}`;
 
-  const ecdh = createECDH("secp256k1");
-  ecdh.setPrivateKey(privateKeyBytes);
-  const uncompressedPubKey = ecdh.getPublicKey();
-  const pubKeyBody = uncompressedPubKey.subarray(1);
-
-  const hash = keccak_256(pubKeyBody);
-  const addressBytes = hash.slice(-20);
-  const address = `0x${Buffer.from(addressBytes).toString("hex")}`;
+  const account = privateKeyToAccount(privateKey);
+  const address = account.address;
 
   const wallet: WalletData = {
     address,
@@ -153,7 +146,7 @@ export async function subscribeTier(
   const apiBase =
     process.env.RUN402_API_BASE || "https://api.run402.com";
   const res = await fetchPaid(
-    `${apiBase}/tiers/v1/subscribe/${tier}`,
+    `${apiBase}/tiers/v1/${tier}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

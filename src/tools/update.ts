@@ -4,6 +4,7 @@ import { apiRequest } from "../client.js";
 import { getApiBase } from "../config.js";
 import { getSession, updateSession } from "../session.js";
 import { text, error, formatApiError } from "../errors.js";
+import { injectAnonKey } from "../inject.js";
 
 export const updateSchema = {
   files: z
@@ -14,7 +15,8 @@ export const updateSchema = {
         encoding: z.enum(["utf-8", "base64"]).optional(),
       }),
     )
-    .describe("Updated site files to deploy. Must include index.html."),
+    .optional()
+    .describe("Updated site files to deploy. Must include index.html if provided."),
   sql: z
     .string()
     .optional()
@@ -42,7 +44,7 @@ export const updateSchema = {
 };
 
 export async function handleUpdate(args: {
-  files: Array<{ file: string; data: string; encoding?: string }>;
+  files?: Array<{ file: string; data: string; encoding?: string }>;
   sql?: string;
   functions?: Array<{ name: string; code: string }>;
   secrets?: Array<{ key: string; value: string }>;
@@ -63,8 +65,8 @@ export async function handleUpdate(args: {
     );
   }
 
-  // Validate files have index.html
-  if (!args.files.some((f) => f.file === "index.html")) {
+  // Validate files have index.html (only when files are provided)
+  if (args.files && !args.files.some((f) => f.file === "index.html")) {
     return error(`Files must include index.html.`);
   }
 
@@ -160,131 +162,120 @@ export async function handleUpdate(args: {
     }
   }
 
-  // --- Step 4: Inject anon_key into HTML ---
-  const injectedFiles = args.files.map((f) => {
-    if (f.file !== "index.html" || f.encoding === "base64" || !session.anonKey) return f;
+  // --- Steps 4-7 only run when files are provided ---
+  if (args.files) {
+    // --- Step 4: Inject anon_key into HTML ---
+    const injectedFiles = session.anonKey
+      ? injectAnonKey(args.files, session.anonKey, getApiBase(), session.projectId!)
+      : args.files;
 
-    let html = f.data;
-    const apiBase = getApiBase();
-
-    if (html.includes("{ANON_KEY}")) {
-      html = html.replace(/\{ANON_KEY\}/g, session.anonKey);
-    } else if (html.includes("ANON_KEY_PLACEHOLDER")) {
-      html = html.replace(/ANON_KEY_PLACEHOLDER/g, session.anonKey);
-    }
-
-    if (html.includes("{API_URL}")) {
-      html = html.replace(/\{API_URL\}/g, apiBase);
-    } else if (html.includes("API_URL_PLACEHOLDER")) {
-      html = html.replace(/API_URL_PLACEHOLDER/g, apiBase);
-    }
-
-    if (
-      !f.data.includes("ANON_KEY") &&
-      !html.includes("window.BLD402_CONFIG")
-    ) {
-      const configBlock = `<script>window.BLD402_CONFIG = { API_URL: "${apiBase}", ANON_KEY: "${session.anonKey}", PROJECT_ID: "${session.projectId}" };</script>`;
-      if (html.includes("</head>")) {
-        html = html.replace("</head>", `${configBlock}\n</head>`);
-      } else if (html.includes("<body")) {
-        html = html.replace(/<body[^>]*>/, `$&\n${configBlock}`);
-      }
-    }
-
-    return { ...f, data: html };
-  });
-
-  // --- Step 5: Redeploy site ---
-  const walletHeaders = await signWalletAuth(wallet);
-  const deployRes = await fetch(`${getApiBase()}/deployments/v1`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...walletHeaders,
-    },
-    body: JSON.stringify({
-      name: session.projectName || "bld402-app",
-      project: session.projectId,
-      files: injectedFiles,
-    }),
-  });
-
-  if (!deployRes.ok) {
-    const body = await deployRes.json().catch(() => ({}));
-    const msg =
-      (body as Record<string, string>).error ||
-      (body as Record<string, string>).message ||
-      `HTTP ${deployRes.status}`;
-    return error(`Redeploy failed: ${msg}`);
-  }
-
-  const deployBody = (await deployRes.json()) as {
-    id: string;
-    url: string;
-  };
-
-  updateSession({
-    deploymentId: deployBody.id,
-    deploymentUrl: deployBody.url,
-  });
-
-  changes.push(
-    `Redeployed site (${args.files.length} file${args.files.length > 1 ? "s" : ""})`,
-  );
-
-  // --- Step 6: Reassign subdomain ---
-  const subdomainName = session.subdomain || session.projectName;
-  if (subdomainName && session.serviceKey) {
-    const subRes = await apiRequest("/subdomains/v1", {
+    // --- Step 5: Redeploy site ---
+    const walletHeaders = await signWalletAuth(wallet);
+    const deployRes = await fetch(`${getApiBase()}/deployments/v1`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${session.serviceKey}` },
-      body: {
-        name: subdomainName,
-        deployment_id: deployBody.id,
+      headers: {
+        "Content-Type": "application/json",
+        ...walletHeaders,
       },
+      body: JSON.stringify({
+        name: session.projectName || "bld402-app",
+        project: session.projectId,
+        files: injectedFiles,
+      }),
     });
 
-    if (subRes.ok) {
-      const subBody = subRes.body as { url?: string };
-      updateSession({
-        subdomainUrl: subBody.url || `https://${subdomainName}.run402.com`,
+    if (!deployRes.ok) {
+      const body = await deployRes.json().catch(() => ({}));
+      const msg =
+        (body as Record<string, string>).error ||
+        (body as Record<string, string>).message ||
+        `HTTP ${deployRes.status}`;
+      return error(`Redeploy failed: ${msg}`);
+    }
+
+    const deployBody = (await deployRes.json()) as {
+      id: string;
+      url: string;
+    };
+
+    updateSession({
+      deploymentId: deployBody.id,
+      deploymentUrl: deployBody.url,
+    });
+
+    changes.push(
+      `Redeployed site (${args.files.length} file${args.files.length > 1 ? "s" : ""})`,
+    );
+
+    // --- Step 6: Reassign subdomain ---
+    const subdomainName = session.subdomain || session.projectName;
+    if (subdomainName && session.serviceKey) {
+      const subRes = await apiRequest("/subdomains/v1", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.serviceKey}` },
+        body: {
+          name: subdomainName,
+          deployment_id: deployBody.id,
+        },
       });
-    }
-  }
 
-  // --- Step 7: Smoke test ---
-  const liveUrl =
-    session.subdomainUrl || deployBody.url;
-
-  let smokeOk = false;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const r = await fetch(liveUrl);
-      if (r.ok) {
-        smokeOk = true;
-        break;
+      if (subRes.ok) {
+        const subBody = subRes.body as { url?: string };
+        updateSession({
+          subdomainUrl: subBody.url || `https://${subdomainName}.run402.com`,
+        });
       }
-    } catch {
-      // retry
     }
-    await new Promise((r) => setTimeout(r, 3000));
+
+    // --- Step 7: Smoke test ---
+    const liveUrl =
+      session.subdomainUrl || deployBody.url;
+
+    let smokeOk = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const r = await fetch(liveUrl);
+        if (r.ok) {
+          smokeOk = true;
+          break;
+        }
+      } catch {
+        // retry
+      }
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+
+    // --- Step 8: Return result ---
+    const lines = [
+      `## App updated!`,
+      ``,
+      `**${liveUrl}** (same link still works)`,
+      ``,
+      `Changes applied:`,
+      ...changes.map((c) => `- ${c}`),
+    ];
+
+    if (!smokeOk) {
+      lines.push(
+        ``,
+        `The site may take a few seconds to propagate. The URL should work shortly.`,
+      );
+    }
+
+    return text(lines.join("\n"));
   }
 
-  // --- Step 8: Return result ---
+  // --- No files: return result without redeploy ---
   const lines = [
     `## App updated!`,
-    ``,
-    `**${liveUrl}** (same link still works)`,
     ``,
     `Changes applied:`,
     ...changes.map((c) => `- ${c}`),
   ];
 
-  if (!smokeOk) {
-    lines.push(
-      ``,
-      `The site may take a few seconds to propagate. The URL should work shortly.`,
-    );
+  const liveUrl = session.subdomainUrl || session.deploymentUrl;
+  if (liveUrl) {
+    lines.push(``, `Live at: **${liveUrl}**`);
   }
 
   return text(lines.join("\n"));

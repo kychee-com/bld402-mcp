@@ -12,6 +12,7 @@ import { getApiBase } from "../config.js";
 import { getTemplate } from "../templates.js";
 import { updateSession } from "../session.js";
 import { text, error } from "../errors.js";
+import { injectAnonKey } from "../inject.js";
 
 export const buildSchema = {
   name: z
@@ -358,7 +359,7 @@ export async function handleBuild(args: {
     deploymentId: result.deployment_id,
     deploymentUrl: result.site_url,
     subdomain: args.name,
-    subdomainUrl: result.subdomain_url || `https://${args.name}.run402.com`,
+    subdomainUrl: result.subdomain_url || result.site_url || undefined,
   });
 
   // --- Step 9: Smoke test ---
@@ -424,49 +425,3 @@ export async function handleBuild(args: {
   return text(lines.join("\n"));
 }
 
-/** Inject anon_key into site files by replacing placeholders or adding a CONFIG block. */
-function injectAnonKey(
-  files: Array<{ file: string; data: string; encoding?: string }>,
-  anonKey: string,
-  apiBase: string,
-  projectId: string,
-): Array<{ file: string; data: string; encoding?: string }> {
-  return files.map((f) => {
-    if (f.file !== "index.html" || f.encoding === "base64") return f;
-
-    let html = f.data;
-
-    // Replace placeholder patterns
-    if (html.includes("{ANON_KEY}")) {
-      html = html.replace(/\{ANON_KEY\}/g, anonKey);
-    } else if (html.includes("'ANON_KEY_PLACEHOLDER'")) {
-      html = html.replace(/'ANON_KEY_PLACEHOLDER'/g, `'${anonKey}'`);
-    } else if (html.includes('"ANON_KEY_PLACEHOLDER"')) {
-      html = html.replace(/"ANON_KEY_PLACEHOLDER"/g, `"${anonKey}"`);
-    } else if (html.includes("ANON_KEY_PLACEHOLDER")) {
-      html = html.replace(/ANON_KEY_PLACEHOLDER/g, anonKey);
-    }
-
-    // Replace API URL placeholder
-    if (html.includes("{API_URL}")) {
-      html = html.replace(/\{API_URL\}/g, apiBase);
-    } else if (html.includes("API_URL_PLACEHOLDER")) {
-      html = html.replace(/API_URL_PLACEHOLDER/g, apiBase);
-    }
-
-    // If no placeholder was found and no CONFIG block exists, inject one
-    if (
-      !f.data.includes("ANON_KEY") &&
-      !html.includes("window.BLD402_CONFIG")
-    ) {
-      const configBlock = `<script>window.BLD402_CONFIG = { API_URL: "${apiBase}", ANON_KEY: "${anonKey}", PROJECT_ID: "${projectId}" };</script>`;
-      if (html.includes("</head>")) {
-        html = html.replace("</head>", `${configBlock}\n</head>`);
-      } else if (html.includes("<body")) {
-        html = html.replace(/<body[^>]*>/, `$&\n${configBlock}`);
-      }
-    }
-
-    return { ...f, data: html };
-  });
-}
