@@ -293,6 +293,7 @@ export async function handleBuild(args: {
   };
 
   // --- Step 6: Inject anon_key into HTML and redeploy ---
+  let anonKeyWarning: string | undefined;
   if (siteFiles && result.anon_key) {
     const injectedFiles = injectAnonKey(siteFiles, result.anon_key, apiBase, result.project_id);
 
@@ -330,6 +331,13 @@ export async function handleBuild(args: {
             deployment_id: redeployBody.id,
           },
         });
+      } else {
+        // Redeploy failed — app is live but has placeholder text in HTML.
+        // Warn user so they can fix with bld402_update.
+        anonKeyWarning =
+          `**Warning:** The app is deployed but API credentials could not be injected into the HTML. ` +
+          `Use \`bld402_update\` with your site files to fix this. ` +
+          `The anon_key is: \`${result.anon_key}\``;
       }
     }
   }
@@ -407,6 +415,10 @@ export async function handleBuild(args: {
     lines.push(
       `| functions | ${result.functions.map((f) => f.name).join(", ")} |`,
     );
+  }
+
+  if (anonKeyWarning) {
+    lines.push(``, anonKeyWarning);
   }
 
   if (siteFiles && !smokeOk) {
