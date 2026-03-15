@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { loadWallet, checkBalance } from "../wallet.js";
 import { getSession } from "../session.js";
 import { text } from "../errors.js";
@@ -27,7 +26,7 @@ export async function handleStatus(
     }
     lines.push(``);
   } else {
-    lines.push(`### Wallet`, `No wallet found. Run \`bld402_setup\`.`, ``);
+    lines.push(`### Wallet`, `No wallet found yet. Use \`bld402_build\` to get started.`, ``);
   }
 
   // Tier
@@ -73,7 +72,7 @@ export async function handleStatus(
 
   if (!wallet && !session.projectId) {
     lines.push(
-      `Nothing set up yet. Start with \`bld402_setup\` to create a wallet and subscribe to a tier.`,
+      `No app deployed yet. Use \`bld402_build\` to build and deploy an app.`,
     );
   }
 

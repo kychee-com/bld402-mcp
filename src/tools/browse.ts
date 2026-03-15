@@ -1,13 +1,22 @@
 import { z } from "zod";
-import { text } from "../errors.js";
-import { getPatterns } from "../templates.js";
+import { listTemplates, getTemplate, getPatterns } from "../templates.js";
+import { text, error } from "../errors.js";
 
-export const getGuideSchema = {
+export const browseSchema = {
+  action: z
+    .enum(["list", "template", "guide"])
+    .describe(
+      "list = show all 13 templates, template = get full source code for one, guide = get build capabilities and rules",
+    ),
+  name: z
+    .string()
+    .optional()
+    .describe("Template name (required when action is 'template')"),
   section: z
     .enum(["capabilities", "design", "patterns", "api", "all"])
-    .default("all")
+    .optional()
     .describe(
-      "Which section of the guide to return: capabilities (what run402 can/cannot do), design (UI/UX rules), patterns (code patterns for building from scratch), api (endpoint reference), or all.",
+      "Guide section (only used when action is 'guide', defaults to 'all')",
     ),
 };
 
@@ -84,10 +93,112 @@ const API_REF = `## API Reference
 - Use gen_random_uuid() for UUID PKs, timestamptz for timestamps
 - Wait 500ms after CREATE TABLE before next API call (schema reload)`;
 
-export async function handleGetGuide(args: { section?: string }) {
-  const section = args.section || "all";
+export async function handleBrowse(args: {
+  action: string;
+  name?: string;
+  section?: string;
+}) {
+  switch (args.action) {
+    case "list":
+      return handleList();
+    case "template":
+      return handleTemplate(args.name);
+    case "guide":
+      return handleGuide(args.section);
+    default:
+      return error(`Unknown action: "${args.action}". Use list, template, or guide.`);
+  }
+}
 
-  if (section === "all") {
+function handleList() {
+  const templates = listTemplates();
+
+  const lines = [
+    `## Available Templates`,
+    ``,
+    `### Utility Apps`,
+    ``,
+    `| # | Template | Description | Auth | Functions |`,
+    `|---|----------|-------------|------|-----------|`,
+  ];
+
+  let i = 1;
+  for (const t of templates.filter((t) => t.category === "utility")) {
+    lines.push(
+      `| ${i++} | ${t.name} | ${t.description} | ${t.hasAuth ? "yes" : "no"} | ${t.hasFunctions ? "yes" : "no"} |`,
+    );
+  }
+
+  lines.push(
+    ``,
+    `### Games`,
+    ``,
+    `| # | Template | Description | Auth | Functions |`,
+    `|---|----------|-------------|------|-----------|`,
+  );
+  for (const t of templates.filter((t) => t.category === "games")) {
+    lines.push(
+      `| ${i++} | ${t.name} | ${t.description} | ${t.hasAuth ? "yes" : "no"} | ${t.hasFunctions ? "yes" : "no"} |`,
+    );
+  }
+
+  lines.push(
+    ``,
+    `Use \`bld402_browse\` with action \`"template"\` and a template name to get full source code.`,
+  );
+
+  return text(lines.join("\n"));
+}
+
+function handleTemplate(name?: string) {
+  if (!name) {
+    return error(
+      `Template name is required. Use \`bld402_browse\` with action \`"list"\` to see available templates.`,
+    );
+  }
+
+  const tpl = getTemplate(name);
+  if (!tpl) {
+    return error(
+      `Template "${name}" not found. Use \`bld402_browse\` with action \`"list"\` to see available templates.`,
+    );
+  }
+
+  const lines = [
+    `## Template: ${tpl.name}`,
+    ``,
+    `### schema.sql`,
+    "```sql",
+    tpl.schema,
+    "```",
+    ``,
+    `### rls.json`,
+    "```json",
+    JSON.stringify(tpl.rls, null, 2),
+    "```",
+    ``,
+    `### index.html`,
+    "```html",
+    tpl.html,
+    "```",
+  ];
+
+  if (tpl.functions && Object.keys(tpl.functions).length > 0) {
+    lines.push(``, `### Serverless Functions`);
+    for (const [fnName, code] of Object.entries(tpl.functions)) {
+      lines.push(`#### ${fnName}.js`, "```javascript", code, "```", ``);
+    }
+  }
+
+  lines.push(``, `### README`, tpl.readme);
+
+  return text(lines.join("\n"));
+}
+
+function handleGuide(section?: string) {
+  const sec = section || "all";
+
+  if (sec === "all") {
     const patterns = getPatterns();
     const patternLines = Object.entries(patterns)
       .map(([name, code]) => `### ${name}\n\`\`\`javascript\n${code}\n\`\`\``)
@@ -100,7 +211,7 @@ export async function handleGetGuide(args: { section?: string }) {
     );
   }
 
-  switch (section) {
+  switch (sec) {
     case "capabilities":
       return text(CAPABILITIES);
     case "design":

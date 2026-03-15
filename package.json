@@ -1,6 +1,6 @@
 {
   "name": "bld402-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for bld402 — build and deploy web apps on run402 from plain language. Handles wallet setup, payments, templates, and deployment automatically.",
   "type": "module",
   "main": "dist/index.js",

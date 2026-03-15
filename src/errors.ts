@@ -32,12 +32,12 @@ export function formatApiError(
   switch (res.status) {
     case 401:
       lines.push(
-        `\nNext step: Check wallet or service key. Re-run \`bld402_setup\` if needed.`,
+        `\nNext step: Check wallet or service key. Re-run \`bld402_build\` if needed.`,
       );
       break;
     case 403:
       lines.push(
-        `\nNext step: Tier may have expired. Re-run \`bld402_setup\` to renew.`,
+        `\nNext step: Tier may have expired. Re-run \`bld402_build\` to renew.`,
       );
       break;
     case 404:
